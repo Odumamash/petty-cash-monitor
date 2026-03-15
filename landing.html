@@ -664,15 +664,23 @@ footer{
 // ── SUPABASE LIVE STATS ───────────────────────────────────────────────────────
 const SUPA_URL = 'https://dfwehqqucvcxfwtuiuji.supabase.co';
 const SUPA_KEY = 'sb_publishable_1invSAM94_1JqFHFrmlXwQ_9muoBZwB';
-const _supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+const _supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } });
 
 async function loadLiveStats() {
   try {
-    const { data, error } = await _supabase
-      .from('EXPENSES')
-      .select('*');
+    // Use direct REST fetch for reliability
+    const res = await fetch(SUPA_URL + '/rest/v1/expenses?select=*', {
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': 'Bearer ' + SUPA_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
 
-    if (error || !data || data.length === 0) return;
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (!data || data.length === 0) return;
 
     const total = data.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
     const count = data.length;
