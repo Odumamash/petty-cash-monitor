@@ -549,9 +549,9 @@ footer{
 <!-- STATS -->
 <div class="stats-wrap">
   <div class="stats reveal">
-    <div class="stat"><div class="stat-val" data-target="63">0</div><div class="stat-label">Transactions Tracked</div></div>
+    <div class="stat"><div class="stat-val" id="stat-txn" data-target="63">0</div><div class="stat-label">Transactions Tracked</div></div>
     <div class="stat"><div class="stat-val" data-target="9">0</div><div class="stat-label">Expense Categories</div></div>
-    <div class="stat"><div class="stat-val" data-target="248">0</div><div class="stat-label">KES Thousands Monitored</div></div>
+    <div class="stat"><div class="stat-val" id="stat-kes" data-target="248">0</div><div class="stat-label">KES Thousands Monitored</div></div>
   </div>
 </div>
 
@@ -642,7 +642,7 @@ footer{
 <section class="cta-section">
   <div class="cta-inner reveal">
     <h2>Ready to monitor<br/>your petty cash?</h2>
-    <p>All 63 transactions for March 2026 are loaded and ready.</p>
+    <p id="cta-sub">All 63 transactions for March 2026 are loaded and ready.</p>
     <a href="index.html" class="btn-primary" style="display:inline-flex;font-size:16px;padding:16px 40px">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       Launch Dashboard
@@ -703,20 +703,21 @@ async function loadLiveStats() {
     const days = new Set(data.map(e => e.date)).size;
     const dailyAvg = days ? Math.round(total/days) : 0;
 
-    // Update stat counters
-    const txnEl = document.querySelector('[data-target="63"]');
-    const kesEl = document.querySelector('[data-target="248"]');
-    if (txnEl) { txnEl.dataset.target = count; txnEl.textContent = count; }
-    if (kesEl) { kesEl.dataset.target = totalK; kesEl.textContent = totalK + 'K'; }
+    // Update stat counters using IDs
+    const txnEl = document.getElementById('stat-txn');
+    const kesEl = document.getElementById('stat-kes');
+    if (txnEl) { txnEl.textContent = count; }
+    if (kesEl) { kesEl.textContent = totalK + 'K'; }
 
-    // Update mini cards
-    const fmt = n => 'KES ' + Math.round(n/1000) + 'K';
+    // Update mini cards with live data
+    const fmtK = n => 'KES ' + Math.round(n/1000) + 'K';
+    const fmtFull = n => 'KES ' + Math.round(n).toLocaleString();
     const cards = document.querySelectorAll('.mini-card-val');
-    if (cards[0]) cards[0].textContent = 'KES ' + total.toLocaleString();
-    if (cards[1]) cards[1].textContent = topCat ? topCat[0].split(' ')[0] : '—';
-    if (cards[2]) cards[2].textContent = fmt(dailyAvg);
-    if (cards[3]) cards[3].textContent = fmt(drugsTotal);
-    if (cards[4]) cards[4].textContent = fmt(ipTotal);
+    if (cards[0]) cards[0].textContent = fmtFull(total);
+    if (cards[1]) cards[1].textContent = topCat ? topCat[0].split(' & ')[0] : '—';
+    if (cards[2]) cards[2].textContent = fmtK(dailyAvg);
+    if (cards[3]) cards[3].textContent = fmtK(drugsTotal);
+    if (cards[4]) cards[4].textContent = fmtK(ipTotal);
 
     // Update mini table with latest 3 transactions
     const latest = [...data].sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,3);
@@ -741,6 +742,10 @@ async function loadLiveStats() {
         </div>`;
       }).join('');
     }
+
+    // Update CTA text
+    const ctaSub = document.getElementById('cta-sub');
+    if (ctaSub) ctaSub.textContent = 'All ' + count + ' transactions are loaded and ready in the database.';
 
     console.log('✅ Live stats loaded:', count, 'transactions, KES', total.toLocaleString());
   } catch(err) {
