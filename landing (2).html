@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OpenFloat — Petty Cash Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0914;
+  --surface:#13111f;
+  --border:#2a2640;
+  --text:#f0eeff;
+  --muted:#7a748f;
+  --violet:#7b61ff;
+  --cyan:#00d4ff;
+  --rose:#e94560;
+  --teal:#0abf91;
+  --amber:#ffb830;
+  --pink:#f06292;
+}
+html{scroll-behavior:smooth}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  overflow-x:hidden;
+}
+
+/* ── NAV ── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:16px 48px;
+  background:rgba(11,9,20,0.85);
+  backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(123,97,255,0.12);
+  transition:padding .3s;
+}
+nav.scrolled{padding:10px 48px;background:rgba(11,9,20,0.97)}
+.nav-logo{
+  font-family:'Syne',sans-serif;
+  font-size:22px;font-weight:800;
+  background:linear-gradient(135deg,var(--violet),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  letter-spacing:-0.5px;
+}
+.nav-center{display:flex;gap:28px;align-items:center}
+.nav-center a{
+  color:var(--muted);font-size:14px;text-decoration:none;
+  font-weight:500;padding:6px 0;position:relative;
+  transition:color .2s;
+}
+.nav-center a::after{
+  content:'';position:absolute;bottom:-2px;left:0;right:0;
+  height:2px;background:var(--violet);border-radius:2px;
+  transform:scaleX(0);transition:transform .2s;transform-origin:left;
+}
+.nav-center a:hover{color:var(--text)}
+.nav-center a:hover::after,.nav-center a.active::after{transform:scaleX(1)}
+.nav-center a.active{color:var(--text)}
+.nav-right{display:flex;align-items:center;gap:20px}
+.nav-cta{
+  background:linear-gradient(135deg,var(--violet),var(--rose));
+  color:#fff!important;padding:9px 20px;border-radius:8px;
+  font-size:14px;font-weight:600;text-decoration:none;
+  transition:transform .2s,box-shadow .2s;
+  -webkit-text-fill-color:#fff!important;
+  white-space:nowrap;
+}
+.nav-cta:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(123,97,255,0.4)}
+.nav-logo-img{height:40px;object-fit:contain}
+
+/* Hamburger */
+.hamburger{
+  display:none;flex-direction:column;gap:5px;
+  cursor:pointer;padding:8px;border:none;background:none;
+}
+.hamburger span{
+  display:block;width:22px;height:2px;
+  background:var(--text);border-radius:2px;
+  transition:transform .3s,opacity .3s;
+}
+.hamburger.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.hamburger.open span:nth-child(2){opacity:0}
+.hamburger.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+
+/* Mobile menu */
+.mobile-menu{
+  display:none;position:fixed;
+  top:0;left:0;right:0;bottom:0;
+  background:rgba(11,9,20,0.98);
+  z-index:190;
+  flex-direction:column;align-items:center;justify-content:center;
+  gap:32px;
+}
+.mobile-menu.open{display:flex}
+.mobile-menu a{
+  color:var(--text);font-size:28px;text-decoration:none;
+  font-family:'Syne',sans-serif;font-weight:700;
+  transition:color .2s;
+}
+.mobile-menu a:hover{color:var(--violet)}
+
+/* ── HERO ── */
+.hero{
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  text-align:center;
+  padding:120px 24px 80px;
+  position:relative;overflow:hidden;
+}
+.orb{position:absolute;border-radius:50%;filter:blur(100px);pointer-events:none}
+.orb-1{width:600px;height:600px;background:rgba(123,97,255,0.15);top:-100px;left:-150px;animation:orbFloat 8s ease-in-out infinite}
+.orb-2{width:500px;height:500px;background:rgba(0,212,255,0.08);top:50%;right:-100px;animation:orbFloat 10s ease-in-out infinite reverse}
+.orb-3{width:400px;height:400px;background:rgba(233,69,96,0.08);bottom:-50px;left:30%;animation:orbFloat 12s ease-in-out infinite}
+@keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-30px)}}
+
+.hero::after{
+  content:'';position:absolute;inset:0;
+  background-image:linear-gradient(rgba(123,97,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(123,97,255,0.04) 1px,transparent 1px);
+  background-size:60px 60px;pointer-events:none;
+}
+.hero-inner{position:relative;z-index:2;max-width:820px}
+
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(123,97,255,0.12);
+  border:1px solid rgba(123,97,255,0.25);
+  padding:6px 16px;border-radius:100px;
+  font-family:'DM Mono',monospace;font-size:11px;
+  color:var(--violet);letter-spacing:1.5px;text-transform:uppercase;
+  margin-bottom:32px;
+  animation:fadeUp .6s ease both;
+  cursor:default;
+}
+.hero-badge-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--violet);box-shadow:0 0 8px var(--violet);
+  animation:pulse 2s ease infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(0.8)}}
+
+.hero h1{
+  font-family:'Syne',sans-serif;
+  font-size:clamp(48px,7vw,88px);
+  font-weight:800;line-height:1.0;letter-spacing:-3px;
+  margin-bottom:24px;
+  animation:fadeUp .7s .1s ease both;
+}
+.line-1{display:block;color:var(--text)}
+.line-2{
+  display:block;
+  background:linear-gradient(135deg,var(--violet) 0%,var(--cyan) 50%,var(--teal) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-size:200% auto;
+  animation:gradShift 4s linear infinite;
+}
+@keyframes gradShift{0%{background-position:0%}100%{background-position:200%}}
+
+.hero-sub{
+  font-size:18px;color:var(--muted);line-height:1.7;
+  max-width:560px;margin:0 auto 48px;
+  animation:fadeUp .7s .2s ease both;font-weight:300;
+}
+.hero-actions{
+  display:flex;gap:14px;justify-content:center;flex-wrap:wrap;
+  animation:fadeUp .7s .3s ease both;
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--violet),var(--rose));
+  color:#fff;padding:14px 32px;border-radius:10px;
+  font-size:15px;font-weight:600;text-decoration:none;
+  display:inline-flex;align-items:center;gap:8px;
+  transition:transform .2s,box-shadow .2s;
+  box-shadow:0 0 30px rgba(123,97,255,0.3);
+  cursor:pointer;
+}
+.btn-primary:hover{transform:translateY(-3px);box-shadow:0 8px 40px rgba(123,97,255,0.5)}
+.btn-primary:active{transform:translateY(0px)}
+.btn-secondary{
+  background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);
+  color:var(--text);padding:14px 32px;border-radius:10px;
+  font-size:15px;font-weight:500;text-decoration:none;
+  display:inline-flex;align-items:center;gap:8px;
+  transition:border-color .2s,background .2s,transform .2s;
+  cursor:pointer;
+}
+.btn-secondary:hover{border-color:var(--violet);background:rgba(123,97,255,0.08);transform:translateY(-2px)}
+.btn-secondary:active{transform:translateY(0)}
+
+/* ── PREVIEW FRAME ── */
+.preview-wrap{
+  position:relative;max-width:1000px;margin:72px auto 0;
+  padding:0 24px;animation:fadeUp .8s .4s ease both;
+}
+.preview-glow{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:80%;height:60%;
+  background:radial-gradient(ellipse,rgba(123,97,255,0.2) 0%,transparent 70%);
+  pointer-events:none;animation:orbFloat 6s ease-in-out infinite;
+}
+.preview-frame{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:16px;overflow:hidden;
+  box-shadow:0 40px 100px rgba(0,0,0,0.6),0 0 0 1px rgba(123,97,255,0.1);
+  position:relative;transition:transform .3s,box-shadow .3s;
+}
+.preview-frame:hover{transform:translateY(-4px);box-shadow:0 60px 120px rgba(0,0,0,0.7),0 0 0 1px rgba(123,97,255,0.25)}
+.preview-bar{
+  background:#1a1828;padding:12px 16px;
+  display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid var(--border);
+}
+.dot{width:10px;height:10px;border-radius:50%;cursor:pointer;transition:filter .2s}
+.dot:hover{filter:brightness(1.4)}
+.dot-r{background:#e94560}.dot-y{background:#ffb830}.dot-g{background:#0abf91}
+.preview-url{
+  flex:1;background:rgba(255,255,255,0.04);border-radius:4px;
+  padding:4px 12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);
+  margin-left:12px;
+}
+.preview-body{padding:20px;display:flex;flex-direction:column;gap:14px}
+.mini-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.mini-card{
+  background:#1a1828;border-radius:8px;padding:12px;
+  border-top:2px solid transparent;
+  transition:transform .2s,background .2s;cursor:default;
+}
+.mini-card:hover{transform:translateY(-2px);background:#211e35}
+.mc1{border-top-color:#e94560}.mc2{border-top-color:#0abf91}
+.mc3{border-top-color:#7b61ff}.mc4{border-top-color:#55efc4}.mc5{border-top-color:#f06292}
+.mini-card-label{font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.mini-card-val{font-family:'Syne',sans-serif;font-size:14px;font-weight:700}
+.mini-charts{display:grid;grid-template-columns:1fr 2fr;gap:10px}
+.mini-chart{background:#1a1828;border-radius:8px;padding:14px}
+.mini-chart-label{font-size:9px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.fake-donut{
+  width:80px;height:80px;border-radius:50%;margin:0 auto;
+  background:conic-gradient(#e94560 0% 28%,#7b61ff 28% 50%,#0abf91 50% 64%,#ffb830 64% 76%,#f06292 76% 88%,#00d4ff 88% 100%);
+  display:flex;align-items:center;justify-content:center;
+  animation:spin 20s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fake-donut-inner{width:46px;height:46px;border-radius:50%;background:#1a1828}
+.fake-bars{display:flex;align-items:flex-end;gap:5px;height:70px}
+.fake-bar{
+  flex:1;border-radius:3px 3px 0 0;
+  background:rgba(123,97,255,0.5);
+  transition:background .2s,transform .1s;
+  cursor:default;
+}
+.fake-bar:hover{background:rgba(123,97,255,0.9);transform:scaleY(1.05);transform-origin:bottom}
+.mini-table{background:#1a1828;border-radius:8px;overflow:hidden}
+.mini-row{
+  display:grid;grid-template-columns:1fr 2fr 1fr 1fr;
+  padding:7px 12px;font-size:10px;gap:8px;align-items:center;
+  border-bottom:1px solid rgba(42,38,64,0.5);
+  transition:background .15s;cursor:default;
+}
+.mini-row:last-child{border-bottom:none}
+.mini-row.header{color:var(--muted);font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;background:#13111f}
+.mini-row:not(.header):hover{background:rgba(123,97,255,0.06)}
+.cat-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:5px}
+.amt{font-family:'DM Mono',monospace;color:#00d4ff}
+
+/* ── STATS ── */
+.stats-wrap{padding:80px 60px 0}
+.stats{
+  display:flex;justify-content:center;
+  max-width:700px;margin:0 auto;
+  border:1px solid var(--border);border-radius:14px;
+  overflow:hidden;background:var(--surface);
+}
+.stat{
+  flex:1;padding:32px 24px;text-align:center;
+  border-right:1px solid var(--border);
+  cursor:default;transition:background .2s;
+}
+.stat:last-child{border-right:none}
+.stat:hover{background:#1d1a2e}
+.stat-val{
+  font-family:'Syne',sans-serif;font-size:36px;font-weight:800;
+  background:linear-gradient(135deg,var(--violet),var(--cyan));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  line-height:1;margin-bottom:8px;
+}
+.stat-label{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px}
+
+/* ── SECTIONS ── */
+.section{padding:100px 60px;max-width:1200px;margin:0 auto}
+.section-tag{font-family:'DM Mono',monospace;font-size:11px;color:var(--violet);text-transform:uppercase;letter-spacing:2px;margin-bottom:16px}
+.section-title{font-family:'Syne',sans-serif;font-size:clamp(32px,4vw,52px);font-weight:800;letter-spacing:-1.5px;line-height:1.1;margin-bottom:16px}
+.section-sub{font-size:16px;color:var(--muted);line-height:1.7;max-width:500px;font-weight:300}
+
+/* ── FEATURES ── */
+.features-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:1px;background:var(--border);
+  border:1px solid var(--border);border-radius:16px;
+  overflow:hidden;margin-top:60px;
+}
+.feature{
+  background:var(--surface);padding:40px 36px;
+  position:relative;overflow:hidden;
+  transition:background .25s,transform .25s;
+  cursor:default;
+}
+.feature:hover{background:#1d1a2e}
+.feature-icon{
+  width:52px;height:52px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;margin-bottom:20px;
+  transition:transform .25s;
+}
+.feature:hover .feature-icon{transform:scale(1.15) rotate(-5deg)}
+.fi-1{background:rgba(123,97,255,0.15)}
+.fi-2{background:rgba(0,212,255,0.12)}
+.fi-3{background:rgba(10,191,145,0.12)}
+.fi-4{background:rgba(255,184,48,0.12)}
+.fi-5{background:rgba(233,69,96,0.12)}
+.fi-6{background:rgba(240,98,146,0.12)}
+.feature h3{font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:10px}
+.feature p{font-size:14px;color:var(--muted);line-height:1.7}
+.feature-line{
+  position:absolute;bottom:0;left:0;right:0;height:2px;
+  transform:scaleX(0);transform-origin:left;
+  transition:transform .3s;
+}
+.feature:hover .feature-line{transform:scaleX(1)}
+
+/* ── CATEGORIES ── */
+.cats-section{
+  padding:100px 60px;
+  background:var(--surface);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+}
+.cats-inner{max-width:1200px;margin:0 auto}
+.cats-grid{display:flex;flex-wrap:wrap;gap:12px;margin-top:48px}
+.cat-pill{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 20px;border-radius:100px;
+  border:1px solid;font-size:13px;font-weight:500;
+  transition:transform .2s,box-shadow .2s,background .2s;
+  cursor:default;
+}
+.cat-pill:hover{transform:translateY(-4px) scale(1.04);box-shadow:0 8px 24px rgba(0,0,0,0.3)}
+.cat-pill-dot{width:8px;height:8px;border-radius:50%;transition:transform .2s}
+.cat-pill:hover .cat-pill-dot{transform:scale(1.4)}
+
+/* ── STEPS ── */
+.steps{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:0;margin-top:60px;position:relative;
+}
+.steps::before{
+  content:'';position:absolute;top:28px;left:10%;right:10%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--violet),var(--cyan),transparent);
+  animation:lineGlow 3s ease-in-out infinite;
+}
+@keyframes lineGlow{0%,100%{opacity:.5}50%{opacity:1}}
+.step{padding:0 20px;text-align:center;cursor:default}
+.step-num{
+  width:56px;height:56px;border-radius:50%;
+  background:linear-gradient(135deg,var(--violet),var(--cyan));
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Syne',sans-serif;font-size:20px;font-weight:800;
+  margin:0 auto 20px;position:relative;z-index:1;
+  box-shadow:0 0 0 8px rgba(123,97,255,0.1);
+  transition:transform .25s,box-shadow .25s;
+}
+.step:hover .step-num{transform:scale(1.12);box-shadow:0 0 0 12px rgba(123,97,255,0.15),0 0 30px rgba(123,97,255,0.4)}
+.step h4{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:8px;transition:color .2s}
+.step:hover h4{color:var(--violet)}
+.step p{font-size:13px;color:var(--muted);line-height:1.6}
+
+/* ── CTA ── */
+.cta-section{
+  padding:120px 60px;text-align:center;
+  position:relative;overflow:hidden;
+}
+.cta-section::before{
+  content:'';position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:700px;height:400px;
+  background:radial-gradient(ellipse,rgba(123,97,255,0.15) 0%,transparent 70%);
+  pointer-events:none;animation:orbFloat 6s ease-in-out infinite;
+}
+.cta-inner{position:relative;z-index:2}
+.cta-inner h2{font-family:'Syne',sans-serif;font-size:clamp(36px,5vw,64px);font-weight:800;letter-spacing:-2px;margin-bottom:20px}
+.cta-inner p{font-size:17px;color:var(--muted);margin-bottom:40px;font-weight:300}
+
+/* ── FOOTER ── */
+footer{
+  border-top:1px solid var(--border);padding:40px 60px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.footer-logo{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;background:linear-gradient(135deg,var(--violet),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.footer-copy{font-size:13px;color:var(--muted)}
+.footer-links{display:flex;gap:24px}
+.footer-links a{font-size:13px;color:var(--muted);text-decoration:none;transition:color .2s;padding:4px 0;}
+.footer-links a:hover{color:var(--text)}
+
+/* ── SCROLL REVEAL ── */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+/* Fallback: if JS is disabled or in iframe, show everything */
+@media print{.reveal{opacity:1;transform:none}}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── BAR HEIGHTS ── */
+.b1{height:30%}.b2{height:55%}.b3{height:40%}.b4{height:70%}
+.b5{height:45%}.b6{height:90%}.b7{height:60%}.b8{height:35%}
+.b9{height:80%}.b10{height:50%}.b11{height:100%}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  nav{padding:14px 20px}
+  .nav-center{display:none}
+  .hamburger{display:flex}
+  .section{padding:60px 24px}
+  .features-grid{grid-template-columns:1fr}
+  .steps{grid-template-columns:1fr 1fr;gap:40px}
+  .steps::before{display:none}
+  .stats{flex-direction:column}
+  .stat{border-right:none;border-bottom:1px solid var(--border)}
+  .stat:last-child{border-bottom:none}
+  footer{flex-direction:column;gap:16px;text-align:center;padding:30px 24px}
+  .mini-cards{grid-template-columns:repeat(3,1fr)}
+  .mini-charts{grid-template-columns:1fr}
+  .cats-section{padding:60px 24px}
+  .cta-section{padding:80px 24px}
+  .stats-wrap{padding:60px 24px 0}
+  .hero{padding:100px 20px 60px}
+}
+@media(max-width:480px){
+  .mini-cards{grid-template-columns:1fr 1fr}
+  .steps{grid-template-columns:1fr}
+  .features-grid{grid-template-columns:1fr}
+  .cats-grid{gap:8px}
+}
+</style>
+</head>
+<body>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#features" onclick="closeMobile()">Features</a>
+  <a href="#categories" onclick="closeMobile()">Categories</a>
+  <a href="#how" onclick="closeMobile()">How it works</a>
+  <a href="index.html" style="color:var(--violet)">Launch Dashboard →</a>
+</div>
+
+<!-- NAV -->
+<nav id="mainNav">
+  <div class="nav-logo">OpenFloat</div>
+  <div class="nav-center">
+    <a href="#features">Features</a>
+    <a href="#categories">Categories</a>
+    <a href="#how">How it works</a>
+    <a href="index.html" class="nav-cta">Launch Dashboard →</a>
+  </div>
+  <div class="nav-right">
+    <img src="data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCABQAP4DASIAAhEBAxEB/8QAHAABAAICAwEAAAAAAAAAAAAAAAEHBQYCAwQI/8QAOxAAAQMDAgQEAggFAwUAAAAAAQIDBAAFEQYhBxIxURMiQWEUcQgVIzJCgZHiJDNSscGhssJicoKUov/EABsBAQADAQEBAQAAAAAAAAAAAAABAgMEBQYH/8QALREAAgECBAQFBQADAAAAAAAAAAECAxEEEiExE0FRYQUGcaHwFSKBkbFC0eH/2gAMAwEAAhEDEQA/APsulKHpQClRyigTQE0riSBn2rwP3uzMueE9doDbn9K5KAf0Jpq9glcyNK6GHmX2w4w626g9FIUFD9RXcBQE0pimKAUqOUVOBQClMCmBQClRyinKKAmlRgUxQE0qMCmBQE0qMCpoBSlKAUqCM1HLQHKlRy0AoCaUwKUApSlAKUpQHju9xiWu3vT5zwZjMp5nFn0FatxM4iWXQ2m03aa6JDsgfwUZtXmkHGduyemTXm46uqb4dy0g48R9pB+XMD/itBufDy2apuGl9T6gmyPqSLaGvHSpSQyCjGGzk5HMSckD0ArpoU6btKo9Dio42Dx0sPU0jGKlf8swmgNQXDjHqBbF/kXv4SO06+9At7ngQ+UbNtqWCFqUSSc5xt862jRHCP4lVxOrdP6fhWuTn4a2xmQ4+znoVSD5s+uAcZ9tqt6yWy12uCiNaYMWHGAHKhhsJT067dfnWA4tXddj0e7cGtRxrA4082UyX2PGSrzDLfINzzdNt60liZTnlpKyex6zrOTtT0TPmvirNOgtVBnSCrlp+XHeLYSzNbcbeaSAAtaE7pJO+Fg5BJq0uBvG9vVMprT2pwzEu69o8hHlalH+nH4V+3Q+naqcTF4Z3xq6uS9TTY94cQX1TJsdSWnXSoKV4SUkkDHMnCsncEdK1a26dXcLtJTYp6vLIUm0LcQptU1aVZCUKxgOAEHBI9PWvYeHpVqOSaakubR3ulCcMst1zPv1JzU1pnBrU72rOH9vukwKTOQFRpiVDBDzZ5VZHpnGfzrb5LqGWVvOKCUISVKJ9ABkmvm5RcZOL3R5MouLsznkd6Ag1WWg7peOI8OXqD62l2iyGS4xb48LlS66hBwXXFkE5JzhIxj3rHak1HqThtrKzMXa6uXzTF5f+GDslCRIhunGMqSAFp3zuM9a1VCTk4X16F1SbeXmW/StR4oazjaH0ybu9HXKcLqW0MIPmXvlZ+SUhSj8qytz1Bb4Ok39TKWXoDMMy+ZsZK2+Xm2+YrPJKydtGUyu17GZzStM0tqDUd6atNzNqtv1TcUeJzsTFOOx0lJUnm8oSfQHB2Jrr0zrKbduIt/0m5bmGU2ZDa1yEvFRdDgynCcbe+9Tw5a9hkevY3fIpWgxtZ3e93C/x9L2yBJFkkKjPIlSlIcfcSMkISlJ5R6Aq6mt4jrWuOha0FClJBUkn7pxuKiUXHcOLjud2RTIqqZt+usX6QLOm3r881ZF2kzSy4UBPi8xGOYjOPbNcOPeqZ9ks1ol6bv4jyJF0ZiupZW24C2vOdiDg9N61WHm5Rj1Lqk20upbORTNaPxP1dL0LYYM9mC3ckvS2oZDr5QrmXkBWQkg9N6zljl6idmvs3q1wojSUJU07GlKdCyScpIKU4xgfrWThJRUuRRxaVzOZpWlN6+t6+KatC+EQ6IhdTIz5VOjClND3CCFfnTilrKXo2LapLFuZnInz24OFvFsoUvOFbA5G1WVKbko21ZOSV0rbm65FMisHfJOomBFRZ7ZCmOrJ+IU/JU022ANsEJUSSfatN09rzV1+m6ghW7S9rVIsUkxX0ruSh4q8E+Q+H029cVEacpJtciIwbV0WdkUyO9aJctaXGFxIsmj1WqOTdYi5Pjl85ZCASpJTjc7bb1z4i6zm6VvGnYLFtYmJvc4QkLW8UFpRx5iMHI3qeFNtK2+pOSV0upvFK4t5x5uvriuVZlBSlKAUpSgNG43RTI4dzykE+Ctt38goZ/vWk2JbuqeCcuyxDzzraofZDqtAVzD/TI+Yq39QW9F0ssy3Ofdksqbz2yOtfMtju140XqNxcc+HIYWWZDK/uuAHdJ/wa7KCzQst07nxPmGosJjY1aifDqRcJWN+4U8SUQ2WbDqBwpaR5I8pX4R6JX7dj+tYn6Y1vu03TdkuEQF62R5CvHS2nmIWtI5F7emAofmK1PWV2g3y9LuUK2C3+KgF5sL5gpz1UO2asXgbq9x15Olrm54iCkmGtZyRjct/wCRW6XBmq8VtyK+W/MfBxCwlWWZLSMuvRM+Tl2+e3CE1yFIRGUeUPKaIQTnGObpnINbNw9vs5ha9Ops6r7HnOocYhhxaVNSUkFLzZSCQRjBx1HWr6+mQqI1oS0sFDiXl3HLXIcI2QebmHr1GKq76PkCNablL17disMWqMtUFhGeeU+o+GlIHrkq5QPU/I166xSr4V1JR9EfqarKpRc2j6J4QsGNcNZNAp8P69UohH3Q4WWi4B/5k1vNzjInQJENwkIfaU2rHZQIP9617hhZpdm0mw3cQPrKW65Nn+z7qitQ/LIT+VbQ4FFBCTyqxscZxXzNWV5to8eb+65SnBe7p4exJPD/AFksWtyJKcXb5j45Y8tlZzlKztnPoT617OJ7LXEe/wCnLDZFiVb7fPE+53BvdhlCBs2F9FLVk7Dp61ZrsGe8jkelxXE9lxMj/VVckQ7ghAQibGQkdEiJgf7q1ddcTiJa/NS/F+7PzK+kx5GvdbXV6DOgfVdpjrtqEvsF5LrjycvLACk9E8qAd/xVheFl+jab0pf9EatWHjpx5Uc86ch+Gs+VQB6gBRyN8CrbRDuKPuToyflF/dXRNRIisrkS7lDbbT95a4uBvt/VUca8cjWmnt+CHVSjZ7FS6RtMbS/FW1w+Hl6cuGnbk267c4CHvGYhpAylaVfhJOwHX51kuHslhX0gtfYeR9szFS2c7LKU4UB3x7VvttmsSHvhrfe7YtxXN5GY4ycddgr0r3iJOByJkUHv8J+6plXbvfdq3v6ELERqJtO99ClOJMXTslcjXOiL27a9YtP+EqFGcyua6lfIW1s9STjrjGNz3q9baqQu3x1y0BuSppJeSOiV4HMP1zXidiymueUqZDSUpJU58HuAOu/NXG3vS7hDalxLrGdYdTzNrEY4UO481UqVHOKXT5YrOqpWjfUqq+N2a4/SiYYubMOVFTYi2UyEJW2HeYkJ325senWvN9JazaetOnbEu22m3w5JvTClGPHShfhjJUTyjOOlXGYk47mZFz1z8J+6vE5LzdBblXaGqWR/L+FyRtnB8222+K1hiGpwkv8AFF3iFCUW3toV/wDSelRXtAWvkfStC7xGcBaVklAJ5lDG+APUdKy7epdG6ZiXi6W2/v3MohB8sLnLkjKSQlKSonClFQGPbPpW6/CzsAfGRTjp/CdP/qvLHcL06RCZuMNciPyl5Ah7o5htnzetUVRcNQfK/v8Agh1oqKg3/wBKg1jpXU9q4f2/WTc+FJu1olm9rSzHIccW6QXkFfOQpPKcdOiRXs46aktl70No68w5CVsO3uJJUkHKm0gEq5h1HL61b/w1x5eX4+Py9vhdv91cfg5w6S4v/qfuq8cT90XJbfLbF1W1TfI6LTqvT93uJhWq6RproaLy/AXzBCQQMqI6bn+9V5wLkx3Nd8SAl1BL178RoZ++nChzJ7j3FWWiJPGSmZGTnriJj/lUphXAEFMyMCOhET91YqajGUVz+dDNSSTS5lUcR2YM/wCkPpKLKlvMMi2SEuOMSFMqQo8xSOdJBGcdM714+MVnt9i1dw/cYnXF0/XiFuiXOcfDaBjzYWTyj3q5FQrgSSZkUk+pifuouFcF7qmRlHpkxM/8q0jiHFx7K39/2aRrOLXYyDSgtIUkhSSMgg5BFc64tpKUBJxsPQYrlXMYClKUApSlAQrpVTcZtBvXFatQ2ZnnlJT/ABLCRu4B+IdyB6etW1XFSc+lXpzcJXRw+IeH0sfQdGqtH7PqfHZyCQQQQcEEdKyGmpLsTUdtkskhxuU2Rj/uFX9rfhxZtR88ltPwM8j+e0nZZ/60+vz61Vuj9E3RniXHtNxYwiEsSXXE7oWhJ8pB9zgfrXoRrwnFs/M8R5dxmCxVNLVOSs168+htHGyPprW4gWJD864zrbO8VyJbYxdcVsUqbUs4Q3nbJUdsVmND8PGY9zavd2tsCAWMGDaofmZikDAWtR/mOAZ3+6nJwMkmrGaaQgHlSE5OTgYya7AAK4uPLIoLY/XuK1HKiEjFTSlYmYpSlAKx9/cdatch1iIqW+hBLTSQCVLx5evvWQoQDRaFZxzRaKwjQdTWyBbYkJtccIjpdffUlI+2W5zPFwnokAHYdcjtXVFvGqJrkp2DPXIdS+EfDttjytKWr7ZIIGU8oABBOSSatB9pt1pTTiErQscqkkZBB6g15rfaoFvGIcRpjICfIPQdB8vateIuaPJfhk00oVGo+v8ADQLrA1W8qUyF3B9QhtxWnFFCUKLh+1WUg78owPy965RWNYs/D25gyYsFxa/DdDaCthtISlCSOgzhSvX0FWTyjtTlHao4nYv9LWbNnl++5qmnhdmW5NwvdxfQ34j3hx3QgcrYPlUSB1wknHvWp2yNqv4BqZa/iee6c8tTp5ThxSwGwskbJDeCe+AKs2426HcGgzNitSGgoKCVpyAR616W20IQEJSAAMAAdBRVLFp+HZ7JyaS531uzWdPR74u4y5dymvpYEhaY8ZSU4UjAAUcDPUEge9auwxrOK7crpDiOJfdU864ysJIcWVBDYSOpCEDmzkZ6VZ+B2pgdqhT7F6nh6nFLO1a+t9dSun2NViQw4pdzkpjxXpI5ShHO8dm2yPYZ/Udqi1s6uYVHhrcuCI7EZLy3SEOLfdIUpaSSdt8AD3/SxuUdqco7VOfsU+mLNmzy/ZgNHxbuzbGXrzOdflutILjagkBpW5IGBudwD8q2AdKYHalUbud9KmqcFFO9uopSlQaClKUApSlAKUpQClKUArqDCA74vKnnIwVY3x2rtpQWAGBSlKAVBz2qaUBG/amT2qaUBGT2pk9qmlARk9qZPappQEb9qZPappQDftTPtSlARlVBntU0oCMntTJ7VNKAb9qjJ7VNKAb9qjftU0oBSlKAUpSgP//Z" alt="Oasis Health" class="nav-logo-img"/>
+    <button class="hamburger" id="hamburger" onclick="toggleMobile()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="hero-inner">
+    <div class="hero-badge"><div class="hero-badge-dot"></div> Petty Cash Management System</div>
+    <h1>
+      <span class="line-1">Oasis Doctors Plaza</span>
+      <span class="line-2">Homa Bay</span>
+    </h1>
+    <p class="hero-sub">A real-time petty cash monitoring dashboard for Oasis Health. Import Excel data, visualise spending by category, and send weekly email reports — all from one place.</p>
+    <div class="hero-actions">
+      <a href="index.html" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Open Dashboard
+      </a>
+      <a href="#features" class="btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+        See Features
+      </a>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="preview-wrap">
+      <div class="preview-glow"></div>
+      <div class="preview-frame">
+        <div class="preview-bar">
+          <div class="dot dot-r"></div>
+          <div class="dot dot-y"></div>
+          <div class="dot dot-g"></div>
+          <div class="preview-url">oasis-health / petty-cash-monitor / index.html</div>
+        </div>
+        <div class="preview-body">
+          <div class="mini-cards">
+            <div class="mini-card mc1"><div class="mini-card-label">Total Spent</div><div class="mini-card-val" style="color:#e94560">KES 284K</div></div>
+            <div class="mini-card mc2"><div class="mini-card-label">Top Category</div><div class="mini-card-val" style="color:#0abf91;font-size:11px">Doctors Fee</div></div>
+            <div class="mini-card mc3"><div class="mini-card-label">Daily Avg</div><div class="mini-card-val" style="color:#7b61ff">KES 26K</div></div>
+            <div class="mini-card mc4"><div class="mini-card-label">Drugs Total</div><div class="mini-card-val" style="color:#55efc4">KES 64K</div></div>
+            <div class="mini-card mc5"><div class="mini-card-label">IP Meals</div><div class="mini-card-val" style="color:#f06292">KES 14K</div></div>
+          </div>
+          <div class="mini-charts">
+            <div class="mini-chart">
+              <div class="mini-chart-label">By Category</div>
+              <div class="fake-donut"><div class="fake-donut-inner"></div></div>
+            </div>
+            <div class="mini-chart">
+              <div class="mini-chart-label">Daily Spending</div>
+              <div class="fake-bars">
+                <div class="fake-bar b1"></div><div class="fake-bar b2"></div>
+                <div class="fake-bar b3"></div><div class="fake-bar b4"></div>
+                <div class="fake-bar b5"></div><div class="fake-bar b6"></div>
+                <div class="fake-bar b7"></div><div class="fake-bar b8"></div>
+                <div class="fake-bar b9"></div><div class="fake-bar b10"></div>
+                <div class="fake-bar b11"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mini-table">
+            <div class="mini-row header"><span>Date</span><span>Remark</span><span>Category</span><span>Amount</span></div>
+            <div class="mini-row"><span style="color:#7a748f">12 Mar</span><span>Doctors Fee Payment</span><span><span class="cat-dot" style="background:#a29bfe"></span>Doctors</span><span class="amt">20,000</span></div>
+            <div class="mini-row"><span style="color:#7a748f">11 Mar</span><span>Purchase of IP Drugs</span><span><span class="cat-dot" style="background:#55efc4"></span>Drugs</span><span class="amt">12,000</span></div>
+            <div class="mini-row"><span style="color:#7a748f">12 Mar</span><span>Legal Fee</span><span><span class="cat-dot" style="background:#7b61ff"></span>Gen Office</span><span class="amt">10,000</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-wrap">
+  <div class="stats reveal">
+    <div class="stat"><div class="stat-val" data-target="58">0</div><div class="stat-label">Transactions Tracked</div></div>
+    <div class="stat"><div class="stat-val" data-target="9">0</div><div class="stat-label">Expense Categories</div></div>
+    <div class="stat"><div class="stat-val" data-target="284">0</div><div class="stat-label">KES Thousands Monitored</div></div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="reveal">
+    <div class="section-tag">Features</div>
+    <h2 class="section-title">Everything you need to<br/>manage petty cash</h2>
+    <p class="section-sub">Built specifically for the Oasis Health workflow — no complex setup, no subscriptions.</p>
+  </div>
+  <div class="features-grid reveal">
+    <div class="feature">
+      <div class="feature-icon fi-1">📊</div>
+      <h3>Live Dashboard</h3>
+      <p>5 summary cards showing total spend, top category, daily average, drugs total, and IP meals at a glance.</p>
+      <div class="feature-line" style="background:linear-gradient(90deg,var(--violet),var(--cyan))"></div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon fi-2">📁</div>
+      <h3>Excel Import</h3>
+      <p>Upload your OPENFLOAT_UTILIZATION_REPORT.xlsx directly. The dashboard reads your categories and data automatically.</p>
+      <div class="feature-line" style="background:linear-gradient(90deg,var(--cyan),var(--teal))"></div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon fi-3">🥧</div>
+      <h3>Visual Charts</h3>
+      <p>Donut chart by category and daily bar chart give you an instant visual breakdown of where money is going.</p>
+      <div class="feature-line" style="background:linear-gradient(90deg,var(--teal),var(--violet))"></div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon fi-4">✏️</div>
+      <h3>Add & Edit Expenses</h3>
+      <p>Add new transactions directly in the dashboard. Reclassify any expense category with a single dropdown click.</p>
+      <div class="feature-line" style="background:linear-gradient(90deg,var(--amber),var(--rose))"></div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon fi-5">📧</div>
+      <h3>Weekly Email Report</h3>
+      <p>One click generates a pre-filled email to mashudoduma@gmail.com with total spend, category breakdown, and top expenses.</p>
+      <div class="feature-line" style="background:linear-gradient(90deg,var(--rose),var(--pink))"></div>
+    </div>
+    <div class="feature">
+      <div class="feature-icon fi-6">🔍</div>
+      <h3>Search & Sort</h3>
+      <p>Filter transactions by description or payee. Sort by date, payee, or amount. Delete any incorrect entry instantly.</p>
+      <div class="feature-line" style="background:linear-gradient(90deg,var(--pink),var(--violet))"></div>
+    </div>
+  </div>
+</section>
+
+<!-- CATEGORIES -->
+<section class="cats-section" id="categories">
+  <div class="cats-inner">
+    <div class="reveal">
+      <div class="section-tag">Categories</div>
+      <h2 class="section-title">9 expense categories<br/>pre-configured</h2>
+      <p class="section-sub">All categories from your Excel are mapped automatically. Reclassify any transaction at any time.</p>
+    </div>
+    <div class="cats-grid reveal">
+      <div class="cat-pill" style="color:#00d4ff;border-color:rgba(0,212,255,0.3);background:rgba(0,212,255,0.06)"><span class="cat-pill-dot" style="background:#00d4ff"></span>Courier & Transport</div>
+      <div class="cat-pill" style="color:#ffb830;border-color:rgba(255,184,48,0.3);background:rgba(255,184,48,0.06)"><span class="cat-pill-dot" style="background:#ffb830"></span>Fuel</div>
+      <div class="cat-pill" style="color:#7b61ff;border-color:rgba(123,97,255,0.3);background:rgba(123,97,255,0.06)"><span class="cat-pill-dot" style="background:#7b61ff"></span>General Office</div>
+      <div class="cat-pill" style="color:#0abf91;border-color:rgba(10,191,145,0.3);background:rgba(10,191,145,0.06)"><span class="cat-pill-dot" style="background:#0abf91"></span>Lab Expense</div>
+      <div class="cat-pill" style="color:#f06292;border-color:rgba(240,98,146,0.3);background:rgba(240,98,146,0.06)"><span class="cat-pill-dot" style="background:#f06292"></span>IP Meals & Consumables</div>
+      <div class="cat-pill" style="color:#e94560;border-color:rgba(233,69,96,0.3);background:rgba(233,69,96,0.06)"><span class="cat-pill-dot" style="background:#e94560"></span>Marketing</div>
+      <div class="cat-pill" style="color:#ff9f43;border-color:rgba(255,159,67,0.3);background:rgba(255,159,67,0.06)"><span class="cat-pill-dot" style="background:#ff9f43"></span>Repair & Maintenance</div>
+      <div class="cat-pill" style="color:#a29bfe;border-color:rgba(162,155,254,0.3);background:rgba(162,155,254,0.06)"><span class="cat-pill-dot" style="background:#a29bfe"></span>Doctors Fee</div>
+      <div class="cat-pill" style="color:#55efc4;border-color:rgba(85,239,196,0.3);background:rgba(85,239,196,0.06)"><span class="cat-pill-dot" style="background:#55efc4"></span>Drugs</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="reveal">
+    <div class="section-tag">How it works</div>
+    <h2 class="section-title">Up and running<br/>in 4 simple steps</h2>
+  </div>
+  <div class="steps reveal">
+    <div class="step"><div class="step-num">1</div><h4>Export from OpenFloat</h4><p>Download your utilisation report as an Excel file from the OpenFloat system.</p></div>
+    <div class="step"><div class="step-num">2</div><h4>Import to Dashboard</h4><p>Click Import Excel in the sidebar and upload your .xlsx file.</p></div>
+    <div class="step"><div class="step-num">3</div><h4>Analyse & Report</h4><p>Review charts, edit categories, add new expenses, and send your weekly report.</p></div>
+    <div class="step"><div class="step-num">4</div><h4>Repeat Monthly</h4><p>Upload a fresh Excel each month. The dashboard resets and loads new data instantly.</p></div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-inner reveal">
+    <h2>Ready to monitor<br/>your petty cash?</h2>
+    <p>Your March 2026 data is already loaded and waiting.</p>
+    <a href="index.html" class="btn-primary" style="display:inline-flex;font-size:16px;padding:16px 40px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      Launch Dashboard
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">OpenFloat</div>
+  <div class="footer-copy">© 2026 Oasis Health — Internal use only.</div>
+  <div class="footer-links">
+    <a href="index.html">Dashboard</a>
+    <a href="mailto:mashudoduma@gmail.com">Contact</a>
+  </div>
+</footer>
+
+<script>
+// ── MOBILE MENU ──
+function toggleMobile(){
+  const menu = document.getElementById('mobileMenu');
+  const btn  = document.getElementById('hamburger');
+  menu.classList.toggle('open');
+  btn.classList.toggle('open');
+  document.body.style.overflow = menu.classList.contains('open') ? 'hidden' : '';
+}
+function closeMobile(){
+  document.getElementById('mobileMenu').classList.remove('open');
+  document.getElementById('hamburger').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ── NAV SCROLL SHRINK ──
+window.addEventListener('scroll', () => {
+  document.getElementById('mainNav').classList.toggle('scrolled', window.scrollY > 40);
+});
+
+// ── ACTIVE NAV LINK ON SCROLL ──
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-center a[href^="#"]');
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(s => {
+    if(window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+  });
+});
+
+// ── SCROLL REVEAL ──
+const revealObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting) {
+      e.target.classList.add('visible');
+      revealObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+// Force visible after 1.5s as fallback (for iframes / Google Sites)
+setTimeout(() => {
+  document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+}, 1500);
+
+// ── ANIMATED COUNTERS ──
+function animateCounter(el, target, suffix=''){
+  let start = 0;
+  const duration = 1800;
+  const step = timestamp => {
+    if(!start) start = timestamp;
+    const progress = Math.min((timestamp - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.floor(ease * target) + suffix;
+    if(progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+const counterObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      const target = parseInt(e.target.dataset.target);
+      const suffix = e.target.dataset.target === '284' ? 'K' : '';
+      animateCounter(e.target, target, suffix);
+      counterObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('[data-target]').forEach(el => counterObserver.observe(el));
+
+// ── SMOOTH SCROLL for anchor links ──
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const target = document.querySelector(a.getAttribute('href'));
+    if(target){
+      e.preventDefault();
+      target.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+  });
+});
+</script>
+</body>
+</html>

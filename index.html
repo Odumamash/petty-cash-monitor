@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>OpenFloat — Petty Cash Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0f0e17;
+    --surface: #1a1828;
+    --surface2: #252338;
+    --border: #322f50;
+    --text: #f2f0ff;
+    --muted: #8b86b0;
+    --accent:  #e94560;
+    --accent2: #0abf91;
+    --accent3: #7b61ff;
+    --accent4: #ffb830;
+    --accent5: #ff6b6b;
+    --accent6: #00d4ff;
+    --cat1: #e94560;
+    --cat2: #0abf91;
+    --cat3: #7b61ff;
+    --cat4: #ffb830;
+    --cat5: #ff6b6b;
+    --cat6: #00d4ff;
+    --cat7: #f06292;
+    --card-radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+  /* ── Layout ── */
+  .shell { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 220px; min-height: 100vh;
+    background: linear-gradient(180deg, #1a1828 0%, #120f22 100%);
+    border-right: 1px solid var(--border);
+    padding: 28px 20px;
+    display: flex; flex-direction: column; gap: 32px;
+    position: fixed; top: 0; left: 0; bottom: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 20px;
+    color: #7b61ff;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+  .logo span { display: block; font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+  .nav { display: flex; flex-direction: column; gap: 4px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 8px;
+    color: var(--muted); cursor: pointer;
+    transition: all 0.15s; font-size: 13px; font-weight: 500;
+    border: none; background: none; text-align: left; width: 100%;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(123,97,255,0.18); color: #7b61ff; }
+  .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .sidebar-footer { margin-top: auto; }
+  .upload-btn {
+    width: 100%; padding: 10px; border-radius: 8px;
+    background: linear-gradient(135deg, #7b61ff, #e94560); color: #fff; font-weight: 600;
+    border: none; cursor: pointer; font-size: 13px;
+    transition: opacity 0.15s;
+  }
+  .upload-btn:hover { opacity: 0.85; }
+  #fileInput { display: none; }
+  /* ── Main ── */
+  .main { margin-left: 220px; flex: 1; padding: 28px 32px; }
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 28px;
+  }
+  .page-title { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--text); }
+  .page-title span { color: #7b61ff; }
+  .topbar-right { display: flex; gap: 10px; align-items: center; }
+  .month-badge {
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    padding: 6px 12px; border-radius: 6px; color: var(--muted);
+  }
+  .email-btn {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 14px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+    transition: border-color 0.15s;
+  }
+  .email-btn:hover { border-color: #00d4ff; color: #00d4ff; }
+  /* ── Cards ── */
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--card-radius); padding: 20px;
+  }
+  .card-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 10px; font-family: 'DM Mono', monospace; }
+  .card-value { font-size: 26px; font-family: 'DM Serif Display', serif; color: var(--text); line-height: 1; }
+  .card-value.small { font-size: 16px; margin-top: 4px; }
+  .card-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .card-accent  { border-top: 3px solid #e94560; }
+  .card-accent2 { border-top: 3px solid #0abf91; }
+  .card-accent3 { border-top: 3px solid #7b61ff; }
+  .card-accent4 { border-top: 3px solid #ffb830; }
+  /* ── Charts row ── */
+  .charts-row { display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 24px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 20px; }
+  .chart-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); margin-bottom: 16px; font-family: 'DM Mono', monospace; }
+  .chart-wrap { position: relative; }
+  /* ── Table ── */
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-radius); overflow: hidden; }
+  .table-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .table-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .table-actions { display: flex; gap: 8px; }
+  .filter-input {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 6px 12px; border-radius: 6px;
+    font-size: 12px; outline: none; width: 180px;
+  }
+  .filter-input:focus { border-color: #7b61ff; }
+  .add-btn {
+    background: linear-gradient(135deg,#7b61ff,#e94560); color: #fff; border: none;
+    padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 600;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    padding: 10px 16px; text-align: left; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+    background: var(--surface2); border-bottom: 1px solid var(--border);
+    font-family: 'DM Mono', monospace; cursor: pointer;
+  }
+  th:hover { color: var(--text); }
+  td {
+    padding: 10px 16px; border-bottom: 1px solid rgba(48,54,61,0.5);
+    font-size: 13px; vertical-align: middle;
+  }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  tr:last-child td { border-bottom: none; }
+  .cat-badge {
+    display: inline-block; padding: 3px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 500; font-family: 'DM Mono', monospace;
+  }
+  .amount-cell { font-family: 'DM Mono', monospace; font-weight: 500; }
+  .delete-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
+  .delete-btn:hover { color: var(--accent5); background: rgba(255,123,114,0.1); }
+  /* ── Add form ── */
+  .add-form { display: none; padding: 16px 20px; background: var(--surface2); border-bottom: 1px solid var(--border); gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .add-form.open { display: flex; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .form-input, .form-select {
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 10px; border-radius: 6px;
+    font-size: 13px; outline: none; font-family: 'DM Sans', sans-serif;
+  }
+  .form-input:focus, .form-select:focus { border-color: #7b61ff; }
+  .save-btn { background: #0abf91; color: #fff; border: none; padding: 7px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px; }
+  .cancel-btn { background: var(--surface); border: 1px solid var(--border); color: var(--muted); padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  /* ── Empty state ── */
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.3; }
+  .empty-state p { font-size: 15px; margin-bottom: 8px; }
+  .empty-state small { font-size: 12px; }
+  /* ── Section tabs ── */
+  .section { display: none; }
+  .section.active { display: block; }
+  /* ── Scrollable table ── */
+  .table-scroll { max-height: 400px; overflow-y: auto; }
+  /* ── Responsive ── */
+  @media(max-width: 900px) {
+    .sidebar { width: 60px; }
+    .logo, .nav-item span, .sidebar-footer { display: none; }
+    .main { margin-left: 60px; padding: 16px; }
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+    .charts-row { grid-template-columns: 1fr; }
+  }
+  @media(max-width: 600px) {
+    .summary-grid { grid-template-columns: 1fr; }
+  }
+  /* select override */
+  select.cat-select {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 3px 6px; border-radius: 4px;
+    font-size: 11px; font-family: 'DM Mono', monospace; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">OpenFloat<span>Petty Cash Monitor</span></div>
+    <nav class="nav">
+      <button class="nav-item active" onclick="showSection('dashboard',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-item" onclick="showSection('transactions',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+        <span>Transactions</span>
+      </button>
+      <button class="nav-item" onclick="showSection('categories',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2v10l6 3"/></svg>
+        <span>By Category</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <input type="file" id="fileInput" accept=".xlsx,.xls"/>
+      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">⬆ Import Excel</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <h1 class="page-title">Petty Cash <span>Monitor</span></h1>
+      <div class="topbar-right">
+        <div class="month-badge" id="monthBadge">March 2026</div>
+        <button class="email-btn" onclick="sendWeeklyReport()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          Weekly Report
+        </button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="section-dashboard" class="section active">
+      <div class="summary-grid">
+        <div class="card card-accent">
+          <div class="card-label">Total Spent</div>
+          <div class="card-value" id="totalSpent">KES 0</div>
+          <div class="card-sub" id="totalTxn">0 transactions</div>
+        </div>
+        <div class="card card-accent2">
+          <div class="card-label">Top Category</div>
+          <div class="card-value small" id="topCat">—</div>
+          <div class="card-sub" id="topCatAmt"></div>
+        </div>
+        <div class="card card-accent3">
+          <div class="card-label">Daily Average</div>
+          <div class="card-value" id="dailyAvg">KES 0</div>
+          <div class="card-sub" id="activeDays"></div>
+        </div>
+        <div class="card card-accent4">
+          <div class="card-label">Largest Expense</div>
+          <div class="card-value small" id="largestExp">—</div>
+          <div class="card-sub" id="largestExpAmt"></div>
+        </div>
+      </div>
+      <div class="charts-row">
+        <div class="chart-card">
+          <div class="chart-title">By Category</div>
+          <div class="chart-wrap" style="height:240px">
+            <canvas id="pieChart"></canvas>
+          </div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Daily Spending Trend</div>
+          <div class="chart-wrap" style="height:240px">
+            <canvas id="barChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div id="section-transactions" class="section">
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">All Transactions</div>
+          <div class="table-actions">
+            <input class="filter-input" id="searchInput" placeholder="Search description / payee..." oninput="renderTable()"/>
+            <button class="add-btn" onclick="toggleAddForm()">+ Add</button>
+          </div>
+        </div>
+        <div class="add-form" id="addForm">
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" class="form-input" id="newDate"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Payee / Account</label>
+            <input type="text" class="form-input" id="newPayee" placeholder="Name"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Remark</label>
+            <input type="text" class="form-input" id="newRemark" placeholder="Description"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select class="form-select" id="newCategory"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Amount (KES)</label>
+            <input type="number" class="form-input" id="newAmount" placeholder="0" style="width:120px"/>
+          </div>
+          <button class="save-btn" onclick="addExpense()">Save</button>
+          <button class="cancel-btn" onclick="toggleAddForm()">Cancel</button>
+        </div>
+        <div class="table-scroll">
+          <table id="txnTable">
+            <thead>
+              <tr>
+                <th onclick="sortTable('date')">Date ↕</th>
+                <th onclick="sortTable('accountName')">Payee ↕</th>
+                <th>Remark</th>
+                <th>Category</th>
+                <th onclick="sortTable('amount')">Amount ↕</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="txnBody"></tbody>
+          </table>
+        </div>
+        <div id="emptyState" class="empty-state" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+          <p>No transactions yet</p>
+          <small>Import an Excel file or add expenses manually</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div id="section-categories" class="section">
+      <div id="catBreakdown" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  'Courier & Transport',
+  'Fuel',
+  'General Office',
+  'Lab Expense',
+  'IP Meals & Consumables',
+  'Marketing',
+  'Repair & Maintenance',
+  'Doctors Fee',
+  'Drugs',
+  'Other'
+];
+
+const CAT_COLORS = {
+  'Courier & Transport': '#00d4ff',
+  'Fuel':                '#ffb830',
+  'General Office':      '#7b61ff',
+  'Lab Expense':         '#0abf91',
+  'IP Meals & Consumables': '#f06292',
+  'Marketing':           '#e94560',
+  'Repair & Maintenance':'#ff9f43',
+  'Doctors Fee':         '#a29bfe',
+  'Drugs':               '#55efc4',
+  'Other':               '#636e72'
+};
+
+// Keyword → category mapping
+const CAT_RULES = [
+  { kw: ['transport','courier','curriour','local transport','sending','optical parcel'], cat: 'Courier & Transport' },
+  { kw: ['fuel'], cat: 'Fuel' },
+  { kw: ['gloves','legal','bio waste','iodine','sonography','transaction fee','autoclav','laundry','airtime','office'], cat: 'General Office' },
+  { kw: ['lab','diluent','edta','consumable'], cat: 'Lab Expense' },
+  { kw: ['ip meal','ip consumable','meals'], cat: 'IP Meals & Consumables' },
+  { kw: ['marketing','cake','lunch allowance'], cat: 'Marketing' },
+  { kw: ['repair','electric','maintenance'], cat: 'Repair & Maintenance' },
+  { kw: ['doctor','dr ','doctors fee'], cat: 'Doctors Fee' },
+  { kw: ['drug','pharma'], cat: 'Drugs' },
+];
+
+function guessCategory(remark='', acctName='') {
+  const text = (remark + ' ' + acctName).toLowerCase();
+  for (const rule of CAT_RULES) {
+    if (rule.kw.some(k => text.includes(k))) return rule.cat;
+  }
+  return 'Other';
+}
+
+let expenses = [];
+let sortKey = 'date';
+let sortDir = 1;
+
+// ── PARSE EXCEL ───────────────────────────────────────────────────────────────
+// Section header rows (no Approval Id, no Amount numeric)
+const SECTION_HEADERS = [
+  'curriour and local transport expense',
+  'fuel expense',
+  'general office expense',
+  'lab expense',
+  'purchase of ip meals and consumables',
+  'marketing expense',
+  'repair and maintance expense',
+  'doctors fee',
+  'drugs expense'
+];
+
+function sectionToCategory(header='') {
+  const h = header.toLowerCase().trim();
+  if (h.includes('transport') || h.includes('curriour')) return 'Courier & Transport';
+  if (h.includes('fuel')) return 'Fuel';
+  if (h.includes('general office')) return 'General Office';
+  if (h.includes('lab')) return 'Lab Expense';
+  if (h.includes('ip meals') || h.includes('meals and consumables')) return 'IP Meals & Consumables';
+  if (h.includes('marketing')) return 'Marketing';
+  if (h.includes('repair')) return 'Repair & Maintenance';
+  if (h.includes('doctors fee') || h.includes('doctors')) return 'Doctors Fee';
+  if (h.includes('drugs')) return 'Drugs';
+  return 'Other';
+}
+
+function parseExcel(data) {
+  const wb = XLSX.read(data, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+  const result = [];
+  let currentCategory = 'Other';
+  let idCounter = Date.now();
+
+  for (const row of rows) {
+    // Detect section header: row[1] is a string, row[4] is null or formula
+    const c1 = row[1], c2 = row[2], c3 = row[3], c4 = row[4];
+    const isHeader = (typeof c1 === 'string' && typeof row[0] !== 'number' &&
+      !c3 && (!c4 || typeof c4 === 'string')) ||
+      (typeof c2 === 'string' && !c3 && !c4 && !c1 && !row[0]);
+
+    if (isHeader) {
+      const text = (c1 || c2 || '').toString().trim();
+      if (text.length > 4 && !text.match(/^\d/)) {
+        currentCategory = sectionToCategory(text);
+      }
+      continue;
+    }
+
+    // Data row: has a date-like value in col1 and numeric amount
+    let approvalId = row[0];
+    let dateStr = row[1];
+    let acctName = row[2] || '';
+    let remark = row[3] || '';
+    let amount = row[4];
+
+    // Drugs section has shifted columns (no approval id)
+    if (typeof row[0] === 'string' && row[0].includes('/')) {
+      dateStr = row[0];
+      acctName = row[2] || '';
+      remark = row[3] || '';
+      amount = row[4];
+      approvalId = null;
+    }
+
+    if (!dateStr || typeof amount !== 'number') continue;
+    if (typeof dateStr !== 'string') continue;
+
+    // Parse date dd/mm/yyyy
+    const dateParts = dateStr.trim().split(' ')[0].split('/');
+    let parsedDate = null;
+    if (dateParts.length === 3) {
+      parsedDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`);
+    }
+    if (!parsedDate || isNaN(parsedDate)) continue;
+
+    result.push({
+      id: idCounter++,
+      approvalId: approvalId,
+      date: parsedDate,
+      accountName: acctName.toString().trim(),
+      remark: remark.toString().trim(),
+      category: currentCategory,
+      amount: amount
+    });
+  }
+  return result;
+}
+
+// ── FILE INPUT ────────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    expenses = parseExcel(new Uint8Array(ev.target.result));
+    refresh();
+    showSection('dashboard', document.querySelector('.nav-item'));
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value = '';
+});
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function fmtAmount(n) {
+  return 'KES ' + n.toLocaleString('en-KE', { minimumFractionDigits: 0 });
+}
+function fmtDate(d) {
+  return d.toLocaleDateString('en-KE', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+function refresh() {
+  populateCategorySelect();
+  updateSummaryCards();
+  renderCharts();
+  renderTable();
+  renderCatBreakdown();
+}
+
+function populateCategorySelect() {
+  const sel = document.getElementById('newCategory');
+  sel.innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function updateSummaryCards() {
+  const total = expenses.reduce((s, e) => s + e.amount, 0);
+  document.getElementById('totalSpent').textContent = fmtAmount(total);
+  document.getElementById('totalTxn').textContent = `${expenses.length} transactions`;
+
+  // Top category
+  const bycat = {};
+  expenses.forEach(e => { bycat[e.category] = (bycat[e.category]||0) + e.amount; });
+  const sorted = Object.entries(bycat).sort((a,b) => b[1]-a[1]);
+  if (sorted.length) {
+    document.getElementById('topCat').textContent = sorted[0][0];
+    document.getElementById('topCatAmt').textContent = fmtAmount(sorted[0][1]);
+  }
+
+  // Daily average
+  const days = [...new Set(expenses.map(e => e.date.toDateString()))].length;
+  document.getElementById('dailyAvg').textContent = days ? fmtAmount(Math.round(total/days)) : 'KES 0';
+  document.getElementById('activeDays').textContent = `across ${days} active day${days!==1?'s':''}`;
+
+  // Largest
+  const largest = [...expenses].sort((a,b) => b.amount-a.amount)[0];
+  if (largest) {
+    document.getElementById('largestExp').textContent = largest.remark.substring(0,30);
+    document.getElementById('largestExpAmt').textContent = fmtAmount(largest.amount);
+  }
+}
+
+let pieChart, barChart;
+
+function renderCharts() {
+  const bycat = {};
+  CATEGORIES.forEach(c => bycat[c] = 0);
+  expenses.forEach(e => { bycat[e.category] = (bycat[e.category]||0) + e.amount; });
+  const filteredCats = Object.entries(bycat).filter(([,v]) => v > 0);
+  const labels = filteredCats.map(([k]) => k);
+  const values = filteredCats.map(([,v]) => v);
+  const colors = filteredCats.map(([k]) => CAT_COLORS[k] || '#7d8590');
+
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#161b22' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position:'right', labels: { color:'#7d8590', font:{ family:'DM Mono', size:10 }, boxWidth:10, padding:10 } },
+        tooltip: { callbacks: { label: ctx => ` ${fmtAmount(ctx.raw)}` } }
+      },
+      cutout: '65%'
+    }
+  });
+
+  // Bar chart — daily
+  const byDay = {};
+  expenses.forEach(e => {
+    const key = e.date.toLocaleDateString('en-KE', { day:'2-digit', month:'short' });
+    byDay[key] = (byDay[key]||0) + e.amount;
+  });
+  const dayLabels = Object.keys(byDay).sort((a,b) => new Date(a)-new Date(b));
+  const dayValues = dayLabels.map(k => byDay[k]);
+
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: dayLabels,
+      datasets: [{
+        label: 'Daily Spend (KES)',
+        data: dayValues,
+        backgroundColor: 'rgba(123,97,255,0.75)',
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display:false }, tooltip: { callbacks: { label: ctx => ` ${fmtAmount(ctx.raw)}` } } },
+      scales: {
+        x: { ticks: { color:'#7d8590', font:{ family:'DM Mono', size:10 } }, grid: { color:'rgba(48,54,61,0.5)' } },
+        y: { ticks: { color:'#7d8590', font:{ family:'DM Mono', size:10 }, callback: v => 'KES ' + v.toLocaleString() }, grid: { color:'rgba(48,54,61,0.5)' } }
+      }
+    }
+  });
+}
+
+function renderTable() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  let filtered = expenses.filter(e =>
+    e.remark.toLowerCase().includes(search) ||
+    e.accountName.toLowerCase().includes(search) ||
+    e.category.toLowerCase().includes(search)
+  );
+
+  // Sort
+  filtered.sort((a,b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (sortKey === 'date') { va = va.getTime(); vb = vb.getTime(); }
+    if (sortKey === 'amount') { va = +va; vb = +vb; }
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    return (va < vb ? -1 : va > vb ? 1 : 0) * sortDir;
+  });
+
+  const tbody = document.getElementById('txnBody');
+  const empty = document.getElementById('emptyState');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = filtered.map(e => {
+    const color = CAT_COLORS[e.category] || '#7d8590';
+    const catOptions = CATEGORIES.map(c =>
+      `<option value="${c}" ${c===e.category?'selected':''}>${c}</option>`
+    ).join('');
+    return `<tr>
+      <td style="color:var(--muted);font-family:'DM Mono',monospace;font-size:12px">${fmtDate(e.date)}</td>
+      <td>${e.accountName}</td>
+      <td style="color:var(--muted)">${e.remark}</td>
+      <td><select class="cat-select" onchange="updateCategory(${e.id},this.value)" style="color:${color};border-color:${color}40;background:${color}15">${catOptions}</select></td>
+      <td class="amount-cell" style="color:#00d4ff">${fmtAmount(e.amount)}</td>
+      <td><button class="delete-btn" onclick="deleteExpense(${e.id})">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = 1; }
+  renderTable();
+}
+
+function updateCategory(id, newCat) {
+  const exp = expenses.find(e => e.id === id);
+  if (exp) { exp.category = newCat; refresh(); }
+}
+
+function deleteExpense(id) {
+  expenses = expenses.filter(e => e.id !== id);
+  refresh();
+}
+
+function toggleAddForm() {
+  const f = document.getElementById('addForm');
+  f.classList.toggle('open');
+  if (f.classList.contains('open')) {
+    document.getElementById('newDate').value = new Date().toISOString().split('T')[0];
+  }
+}
+
+function addExpense() {
+  const date = document.getElementById('newDate').value;
+  const payee = document.getElementById('newPayee').value.trim();
+  const remark = document.getElementById('newRemark').value.trim();
+  const category = document.getElementById('newCategory').value;
+  const amount = parseFloat(document.getElementById('newAmount').value);
+
+  if (!date || !remark || isNaN(amount) || amount <= 0) {
+    alert('Please fill in Date, Remark, and a valid Amount.');
+    return;
+  }
+  expenses.push({
+    id: Date.now(),
+    approvalId: null,
+    date: new Date(date),
+    accountName: payee,
+    remark, category, amount
+  });
+  // reset
+  ['newPayee','newRemark','newAmount'].forEach(id => document.getElementById(id).value = '');
+  toggleAddForm();
+  refresh();
+}
+
+function renderCatBreakdown() {
+  const bycat = {};
+  expenses.forEach(e => {
+    if (!bycat[e.category]) bycat[e.category] = { total:0, items:[] };
+    bycat[e.category].total += e.amount;
+    bycat[e.category].items.push(e);
+  });
+
+  const grandTotal = expenses.reduce((s,e) => s+e.amount, 0);
+  const sorted = Object.entries(bycat).sort((a,b) => b[1].total - a[1].total);
+
+  document.getElementById('catBreakdown').innerHTML = sorted.map(([cat, data]) => {
+    const color = CAT_COLORS[cat] || '#7d8590';
+    const pct = grandTotal ? Math.round(data.total/grandTotal*100) : 0;
+    const topItems = [...data.items].sort((a,b) => b.amount-a.amount).slice(0,3);
+    return `<div class="card" style="border-top:3px solid ${color}">
+      <div class="card-label" style="color:${color}">${cat}</div>
+      <div class="card-value">${fmtAmount(data.total)}</div>
+      <div class="card-sub">${data.items.length} transactions · ${pct}% of total</div>
+      <div style="margin-top:12px;height:4px;background:var(--surface2);border-radius:2px">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;transition:width 0.5s"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:6px">
+        ${topItems.map(i => `<div style="display:flex;justify-content:space-between;font-size:12px">
+          <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">${i.remark||i.accountName}</span>
+          <span style="font-family:'DM Mono',monospace;color:${color};flex-shrink:0;margin-left:8px">${fmtAmount(i.amount)}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── EMAIL REPORT ──────────────────────────────────────────────────────────────
+function sendWeeklyReport() {
+  const total = expenses.reduce((s,e) => s+e.amount, 0);
+  const bycat = {};
+  expenses.forEach(e => { bycat[e.category] = (bycat[e.category]||0) + e.amount; });
+  const catLines = Object.entries(bycat)
+    .sort((a,b) => b[1]-a[1])
+    .map(([k,v]) => `  - ${k}: KES ${v.toLocaleString()}`)
+    .join('\n');
+  const top3 = [...expenses].sort((a,b) => b.amount-a.amount).slice(0,3)
+    .map((e,i) => `  ${i+1}. ${e.remark} — KES ${e.amount.toLocaleString()}`)
+    .join('\n');
+
+  const now = new Date();
+  const subject = encodeURIComponent(`OpenFloat Weekly Expense Report — ${now.toLocaleDateString('en-KE',{month:'long',year:'numeric'})}`);
+  const body = encodeURIComponent(
+`OPENFLOAT PETTY CASH — WEEKLY EXPENSE REPORT
+Generated: ${now.toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+═══════════════════════════════════════════
+
+SUMMARY
+  Total Expenditure : KES ${total.toLocaleString()}
+  Total Transactions: ${expenses.length}
+
+BREAKDOWN BY CATEGORY
+${catLines}
+
+TOP 3 EXPENSES
+${top3}
+
+─────────────────────────────────────────
+This report was generated by OpenFloat Petty Cash Monitor.
+`);
+  window.location.href = `mailto:mashudoduma@gmail.com?subject=${subject}&body=${body}`;
+}
+
+// ── NAV ───────────────────────────────────────────────────────────────────────
+function showSection(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+populateCategorySelect();
+
+// Load sample data from the uploaded file structure (pre-seeded)
+const SEED = [
+  { id:1, approvalId:13764513, date:'2026-03-12', accountName:'RICHARD', remark:'SENDING OF OPTICAL PARCEL', category:'Courier & Transport', amount:250 },
+  { id:2, approvalId:13708137, date:'2026-03-04', accountName:'STEVE OGOCH', remark:'OUTSOURCING OF LAB SERVICE', category:'Courier & Transport', amount:250 },
+  { id:3, approvalId:13724422, date:'2026-03-06', accountName:'COSMAS NYABUTO', remark:'SENDING OF MOH DOCS', category:'Courier & Transport', amount:300 },
+  { id:4, approvalId:13742456, date:'2026-03-09', accountName:'ELLY OPATA', remark:'COURIER CHARGES FOR SENDING PRINTER TO NAIROBI', category:'Courier & Transport', amount:1500 },
+  { id:5, approvalId:13743876, date:'2026-03-10', accountName:'Mashud Abiola', remark:'Transport Allowance', category:'Courier & Transport', amount:1000 },
+  { id:6, approvalId:13714670, date:'2026-03-05', accountName:'Veronica Apiyo', remark:'Transport Allowance', category:'Courier & Transport', amount:100 },
+  { id:7, approvalId:13764464, date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF FUEL', category:'Fuel', amount:2000 },
+  { id:8, approvalId:13743772, date:'2026-03-10', accountName:'Rosemary Apanja', remark:'PURCHASE OF FUEL', category:'Fuel', amount:3556 },
+  { id:9, approvalId:13761490, date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF HARD GLOVES', category:'General Office', amount:700 },
+  { id:10, approvalId:13759881, date:'2026-03-12', accountName:'ADOYO ADVOCATE', remark:'LEGAL FEE', category:'General Office', amount:10000 },
+  { id:11, approvalId:13758004, date:'2026-03-11', accountName:'EDWARD ENVIROWASTE', remark:'BIO WASTE INCINERATION', category:'General Office', amount:2800 },
+  { id:12, approvalId:13753862, date:'2026-03-11', accountName:'Rosemary Apanja', remark:'Purchase of iodine', category:'General Office', amount:230 },
+  { id:13, approvalId:13752938, date:'2026-03-11', accountName:'SAMWEL', remark:'PAYMENT FOR SONOGRAPHY SERVICE', category:'General Office', amount:500 },
+  { id:14, approvalId:13702583, date:'2026-03-03', accountName:'Mashud Abiola', remark:'Transaction fee', category:'General Office', amount:70 },
+  { id:15, approvalId:13694370, date:'2026-03-02', accountName:'ADMIN JANEIRO', remark:'AUTOCLAVING SERVICE', category:'General Office', amount:1500 },
+  { id:16, approvalId:13692362, date:'2026-03-02', accountName:'JEDIDAH OHURU', remark:'LAUNDRY SERVICE', category:'General Office', amount:400 },
+  { id:17, approvalId:13723520, date:'2026-03-06', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF FACILITY AIRTIME', category:'General Office', amount:1050 },
+  { id:18, approvalId:13723654, date:'2026-03-06', accountName:'MERESA', remark:'PAYMENT FOR AUTOCLAVING SERVICE', category:'General Office', amount:500 },
+  { id:19, approvalId:13763767, date:'2026-03-12', accountName:'STEVE OGOCH', remark:'OUTSOURCING OF LAB SERVICE', category:'Lab Expense', amount:500 },
+  { id:20, approvalId:13755155, date:'2026-03-11', accountName:'PREMIUM TECHNICAL SOLUTION', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:7800 },
+  { id:21, approvalId:13763792, date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:4200 },
+  { id:22, approvalId:13685637, date:'2026-03-02', accountName:'STEVE OGOCH', remark:'OUTSOURCING OF LAB SERVICES', category:'Lab Expense', amount:1200 },
+  { id:23, approvalId:13704590, date:'2026-03-04', accountName:'PREMIUM TECHNICAL', remark:'PURCHASE OF LAB CONSUMABLE', category:'Lab Expense', amount:4200 },
+  { id:24, approvalId:13752317, date:'2026-03-11', accountName:'Rosemary Apanja', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:970 },
+  { id:25, approvalId:13722887, date:'2026-03-06', accountName:'ELLY OUDA', remark:'OUTSOURCING OF LAB SERVICE', category:'Lab Expense', amount:500 },
+  { id:26, approvalId:13721867, date:'2026-03-06', accountName:'ELLY OUDA', remark:'OUTSOURCING LAB SERVICE', category:'Lab Expense', amount:1000 },
+  { id:27, approvalId:13716948, date:'2026-03-05', accountName:'Rosemary', remark:'PURCHASE OF IP MEALS', category:'IP Meals & Consumables', amount:830 },
+  { id:28, approvalId:13748591, date:'2026-03-10', accountName:'Rosemary Apanja', remark:'Purchase of IP meals and consumables', category:'IP Meals & Consumables', amount:3640 },
+  { id:29, approvalId:13729466, date:'2026-03-07', accountName:'Rosemary Apanja', remark:'Purchase of IP meals', category:'IP Meals & Consumables', amount:250 },
+  { id:30, approvalId:13727902, date:'2026-03-07', accountName:'Rosemary Apanja', remark:'Purchase of IP meals and consumables', category:'IP Meals & Consumables', amount:5000 },
+  { id:31, approvalId:13742629, date:'2026-03-09', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF IP CONSUMABLES', category:'IP Meals & Consumables', amount:2650 },
+  { id:32, approvalId:13756309, date:'2026-03-11', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF IP MEALS', category:'IP Meals & Consumables', amount:1850 },
+  { id:33, approvalId:13743142, date:'2026-03-09', accountName:'Jesca Ambale', remark:'Purchase of cake', category:'Marketing', amount:2000 },
+  { id:34, approvalId:13741943, date:'2026-03-09', accountName:'PHILIP KIOKO', remark:'LUNCH ALLOWANCE TO MARKETING TEAM', category:'Marketing', amount:1000 },
+  { id:35, approvalId:13686193, date:'2026-03-01', accountName:'MARKETING', remark:'BEING MARKETING EXPENSE', category:'Marketing', amount:1500 },
+  { id:36, approvalId:13691583, date:'2026-03-02', accountName:'JOYCE OWADE', remark:'LABOUR FOR REPAIR OF OPTICAL GLASS', category:'Repair & Maintenance', amount:300 },
+  { id:37, approvalId:13723414, date:'2026-03-06', accountName:'Walter Electrician', remark:'REPAIR OF ELECTRIC', category:'Repair & Maintenance', amount:1950 },
+  { id:38, approvalId:13757997, date:'2026-03-11', accountName:'DR ODUOR', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8000 },
+  { id:39, approvalId:13754929, date:'2026-03-11', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8400 },
+  { id:40, approvalId:13754915, date:'2026-03-11', accountName:'DR ONDIGO', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:20000 },
+  { id:41, approvalId:13727679, date:'2026-03-06', accountName:'Dr Odour', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:10000 },
+  { id:42, approvalId:13727303, date:'2026-03-06', accountName:'Dr Liru', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8000 },
+  { id:43, approvalId:13714401, date:'2026-03-05', accountName:'ONDIGO', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:10000 },
+  { id:44, approvalId:13712877, date:'2026-03-05', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:3600 },
+  { id:45, approvalId:13703579, date:'2026-03-03', accountName:'Dr Oduor', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:5000 },
+  { id:46, approvalId:13695798, date:'2026-03-02', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:5000 },
+  { id:47, approvalId:13691177, date:'2026-03-02', accountName:'DR ONGETI', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:300 },
+  { id:48, approvalId:13703568, date:'2026-03-03', accountName:'Dr Liru', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:3200 },
+  { id:49, approvalId:13691951, date:'2026-03-02', accountName:'Dr Ondigo', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:15000 },
+  { id:50, approvalId:null, date:'2026-03-11', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:12000 },
+  { id:51, approvalId:null, date:'2026-03-09', accountName:'GELLY PHARMACY', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:11000 },
+  { id:52, approvalId:null, date:'2026-03-09', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:165 },
+  { id:53, approvalId:null, date:'2026-03-05', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:6225 },
+  { id:54, approvalId:null, date:'2026-03-05', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:850 },
+  { id:55, approvalId:null, date:'2026-03-03', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:10000 },
+  { id:56, approvalId:null, date:'2026-03-03', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8200 },
+  { id:57, approvalId:null, date:'2026-03-02', accountName:'GELLY PHARMACY', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8000 },
+  { id:58, approvalId:null, date:'2026-03-06', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8500 },
+];
+
+expenses = SEED.map(e => ({ ...e, date: new Date(e.date) }));
+refresh();
+</script>
+</body>
+</html>
