@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>OpenFloat — Petty Cash Monitor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
@@ -100,7 +101,7 @@
   }
   .email-btn:hover { border-color: #00d4ff; color: #00d4ff; }
   /* ── Cards ── */
-  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 24px; }
   .card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--card-radius); padding: 20px;
@@ -113,6 +114,8 @@
   .card-accent2 { border-top: 3px solid #0abf91; }
   .card-accent3 { border-top: 3px solid #7b61ff; }
   .card-accent4 { border-top: 3px solid #ffb830; }
+  .card-accent5 { border-top: 3px solid #55efc4; }
+  .card-accent6 { border-top: 3px solid #f06292; }
   /* ── Charts row ── */
   .charts-row { display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 24px; }
   .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 20px; }
@@ -183,13 +186,25 @@
     .sidebar { width: 60px; }
     .logo, .nav-item span, .sidebar-footer { display: none; }
     .main { margin-left: 60px; padding: 16px; }
-    .summary-grid { grid-template-columns: 1fr 1fr; }
-    .charts-row { grid-template-columns: 1fr; }
+    .summary-grid { grid-template-columns: 1fr 1fr; }    .charts-row { grid-template-columns: 1fr; }
   }
   @media(max-width: 600px) {
     .summary-grid { grid-template-columns: 1fr; }
   }
-  /* select override */
+  /* ── TOAST NOTIFICATION ── */
+  .toast {
+    position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+    background: #1d1a2e; border: 1px solid #0abf91;
+    color: #f0eeff; padding: 14px 20px; border-radius: 10px;
+    font-size: 13px; font-weight: 500;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    display: flex; align-items: center; gap: 10px;
+    animation: toastIn .3s ease;
+    max-width: 360px;
+  }
+  .toast-icon { color: #0abf91; font-size: 18px; flex-shrink: 0; }
+  @keyframes toastIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes toastOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(20px); } }
   select.cat-select {
     background: var(--surface2); border: 1px solid var(--border);
     color: var(--text); padding: 3px 6px; border-radius: 4px;
@@ -253,10 +268,15 @@
           <div class="card-value" id="dailyAvg">KES 0</div>
           <div class="card-sub" id="activeDays"></div>
         </div>
-        <div class="card card-accent4">
-          <div class="card-label">Largest Expense</div>
-          <div class="card-value small" id="largestExp">—</div>
-          <div class="card-sub" id="largestExpAmt"></div>
+        <div class="card card-accent5">
+          <div class="card-label">Drugs Total</div>
+          <div class="card-value" id="drugsTotal">KES 0</div>
+          <div class="card-sub" id="drugsTxn">0 transactions</div>
+        </div>
+        <div class="card card-accent6">
+          <div class="card-label">IP Meals & Consumables</div>
+          <div class="card-value" id="ipMealsTotal">KES 0</div>
+          <div class="card-sub" id="ipMealsTxn">0 transactions</div>
         </div>
       </div>
       <div class="charts-row">
@@ -340,6 +360,11 @@
 </div>
 
 <script>
+// ── SUPABASE ─────────────────────────────────────────────────────────────────
+const SUPA_URL = 'https://dfwehqqucvcxfwtuiuji.supabase.co';
+const SUPA_KEY = 'sb_publishable_1invSAM94_1JqFHFrmlXwQ_9muoBZwB';
+const supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const CATEGORIES = [
   'Courier & Transport',
@@ -421,64 +446,84 @@ function sectionToCategory(header='') {
 }
 
 function parseExcel(data) {
-  const wb = XLSX.read(data, { type: 'array' });
+  const wb = XLSX.read(data, { type: 'array', cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
 
   const result = [];
   let currentCategory = 'Other';
   let idCounter = Date.now();
 
   for (const row of rows) {
-    // Detect section header: row[1] is a string, row[4] is null or formula
-    const c1 = row[1], c2 = row[2], c3 = row[3], c4 = row[4];
-    const isHeader = (typeof c1 === 'string' && typeof row[0] !== 'number' &&
-      !c3 && (!c4 || typeof c4 === 'string')) ||
-      (typeof c2 === 'string' && !c3 && !c4 && !c1 && !row[0]);
+    if (!row || row.every(c => !c)) continue;
+
+    const c0 = row[0], c1 = row[1], c2 = row[2], c3 = row[3], c4 = row[4];
+
+    // Detect section header row
+    const isHeader = (typeof c1 === 'string' && !c3 &&
+      (!c4 || typeof c4 === 'string') && typeof c0 !== 'number') ||
+      (typeof c2 === 'string' && !c3 && !c4 && !c1 && !c0);
 
     if (isHeader) {
       const text = (c1 || c2 || '').toString().trim();
-      if (text.length > 4 && !text.match(/^\d/)) {
+      if (text.length > 4 && !text.match(/^\d/) && text !== 'Account Name') {
         currentCategory = sectionToCategory(text);
       }
       continue;
     }
 
-    // Data row: has a date-like value in col1 and numeric amount
-    let approvalId = row[0];
-    let dateStr = row[1];
-    let acctName = row[2] || '';
-    let remark = row[3] || '';
-    let amount = row[4];
+    // Skip header row
+    if (c0 === 'Approval Id' || c1 === 'Date') continue;
 
-    // Drugs section has shifted columns (no approval id)
-    if (typeof row[0] === 'string' && row[0].includes('/')) {
-      dateStr = row[0];
-      acctName = row[2] || '';
-      remark = row[3] || '';
-      amount = row[4];
+    let approvalId, dateStr, acctName, remark, amount;
+
+    // Normal rows: Approval Id | Date | Account Name | Remark | Amount
+    if (typeof c0 === 'number' && c1) {
+      approvalId = c0;
+      dateStr = c1 ? c1.toString() : null;
+      acctName = c2 || '';
+      remark = c3 || '';
+      amount = parseFloat(c4);
+    }
+    // Drugs section: Date | null | Account Name | Remark | Amount
+    else if (typeof c0 === 'string' && c0.includes('/')) {
       approvalId = null;
+      dateStr = c0;
+      acctName = c2 || '';
+      remark = c3 || '';
+      amount = parseFloat(c4);
     }
+    // Date object from cellDates:true
+    else if (c0 instanceof Date) {
+      approvalId = null;
+      dateStr = `${String(c0.getDate()).padStart(2,'0')}/${String(c0.getMonth()+1).padStart(2,'0')}/${c0.getFullYear()}`;
+      acctName = c2 || '';
+      remark = c3 || '';
+      amount = parseFloat(c4);
+    }
+    else { continue; }
 
-    if (!dateStr || typeof amount !== 'number') continue;
-    if (typeof dateStr !== 'string') continue;
+    if (!dateStr || isNaN(amount) || amount <= 0) continue;
 
-    // Parse date dd/mm/yyyy
-    const dateParts = dateStr.trim().split(' ')[0].split('/');
+    // Parse date — handle dd/mm/yyyy hh:mm:ss or dd/mm/yyyy
     let parsedDate = null;
-    if (dateParts.length === 3) {
-      parsedDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`);
-    }
-    if (!parsedDate || isNaN(parsedDate)) continue;
+    try {
+      const parts = dateStr.toString().trim().split(' ')[0].split('/');
+      if (parts.length === 3) {
+        parsedDate = new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`);
+      }
+    } catch(e) {}
+
+    if (!parsedDate || isNaN(parsedDate.getTime())) continue;
 
     result.push({
       id: idCounter++,
-      approvalId: approvalId,
+      approvalId,
       date: parsedDate,
       accountName: acctName.toString().trim(),
       remark: remark.toString().trim(),
       category: currentCategory,
-      amount: amount
+      amount
     });
   }
   return result;
@@ -489,10 +534,35 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(ev) {
-    expenses = parseExcel(new Uint8Array(ev.target.result));
-    refresh();
-    showSection('dashboard', document.querySelector('.nav-item'));
+  reader.onload = async function(ev) {
+    try {
+      const parsed = parseExcel(new Uint8Array(ev.target.result));
+      if (!parsed || parsed.length === 0) {
+        showToast('⚠️ No transactions found in file. Existing data kept.');
+        return;
+      }
+      showToast('⏳ Saving ' + parsed.length + ' transactions to database...');
+
+      // Clear existing data in Supabase and insert new
+      await supabase.from('expenses').delete().neq('id', 0);
+      const rows = parsed.map(e => ({
+        date: e.date.toISOString().split('T')[0],
+        account_name: e.accountName,
+        remark: e.remark,
+        category: e.category,
+        amount: e.amount
+      }));
+
+      const { error } = await supabase.from('expenses').insert(rows);
+      if (error) throw error;
+
+      expenses = parsed;
+      refresh();
+      showSection('dashboard', document.querySelector('.nav-item'));
+      showToast('✅ ' + parsed.length + ' transactions imported to database!');
+    } catch(err) {
+      showToast('❌ Import error: ' + err.message);
+    }
   };
   reader.readAsArrayBuffer(file);
   e.target.value = '';
@@ -538,12 +608,17 @@ function updateSummaryCards() {
   document.getElementById('dailyAvg').textContent = days ? fmtAmount(Math.round(total/days)) : 'KES 0';
   document.getElementById('activeDays').textContent = `across ${days} active day${days!==1?'s':''}`;
 
-  // Largest
-  const largest = [...expenses].sort((a,b) => b.amount-a.amount)[0];
-  if (largest) {
-    document.getElementById('largestExp').textContent = largest.remark.substring(0,30);
-    document.getElementById('largestExpAmt').textContent = fmtAmount(largest.amount);
-  }
+  // Drugs
+  const drugs = expenses.filter(e => e.category === 'Drugs');
+  const drugsTotal = drugs.reduce((s,e) => s+e.amount, 0);
+  document.getElementById('drugsTotal').textContent = fmtAmount(drugsTotal);
+  document.getElementById('drugsTxn').textContent = `${drugs.length} transaction${drugs.length!==1?'s':''}`;
+
+  // IP Meals & Consumables
+  const ipMeals = expenses.filter(e => e.category === 'IP Meals & Consumables');
+  const ipMealsTotal = ipMeals.reduce((s,e) => s+e.amount, 0);
+  document.getElementById('ipMealsTotal').textContent = fmtAmount(ipMealsTotal);
+  document.getElementById('ipMealsTxn').textContent = `${ipMeals.length} transaction${ipMeals.length!==1?'s':''}`;
 }
 
 let pieChart, barChart;
@@ -557,8 +632,17 @@ function renderCharts() {
   const values = filteredCats.map(([,v]) => v);
   const colors = filteredCats.map(([k]) => CAT_COLORS[k] || '#7d8590');
 
-  if (pieChart) pieChart.destroy();
-  pieChart = new Chart(document.getElementById('pieChart'), {
+  // Destroy existing charts properly
+  if (pieChart) { pieChart.destroy(); pieChart = null; }
+  if (barChart) { barChart.destroy(); barChart = null; }
+
+  // Clear canvas elements to prevent ghost rendering
+  const pieCanvas = document.getElementById('pieChart');
+  const barCanvas = document.getElementById('barChart');
+  pieCanvas.getContext('2d').clearRect(0, 0, pieCanvas.width, pieCanvas.height);
+  barCanvas.getContext('2d').clearRect(0, 0, barCanvas.width, barCanvas.height);
+
+  pieChart = new Chart(pieCanvas, {
     type: 'doughnut',
     data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#161b22' }] },
     options: {
@@ -580,8 +664,8 @@ function renderCharts() {
   const dayLabels = Object.keys(byDay).sort((a,b) => new Date(a)-new Date(b));
   const dayValues = dayLabels.map(k => byDay[k]);
 
-  if (barChart) barChart.destroy();
-  barChart = new Chart(document.getElementById('barChart'), {
+  if (barChart) { barChart.destroy(); barChart = null; }
+  barChart = new Chart(barCanvas, {
     type: 'bar',
     data: {
       labels: dayLabels,
@@ -654,14 +738,33 @@ function sortTable(key) {
   renderTable();
 }
 
-function updateCategory(id, newCat) {
+async function updateCategory(id, newCat) {
   const exp = expenses.find(e => e.id === id);
-  if (exp) { exp.category = newCat; refresh(); }
+  if (exp) {
+    exp.category = newCat;
+    refresh();
+    try {
+      await supabase.from('expenses').update({ category: newCat }).eq('id', id);
+      showToast(`✅ Category updated to ${newCat}`);
+    } catch(err) {
+      console.error('Update error:', err);
+    }
+  }
 }
 
-function deleteExpense(id) {
+async function deleteExpense(id) {
+  try {
+    const { error } = await supabase
+      .from('expenses')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  } catch(err) {
+    console.error('Delete error:', err);
+  }
   expenses = expenses.filter(e => e.id !== id);
   refresh();
+  showToast('🗑️ Transaction deleted');
 }
 
 function toggleAddForm() {
@@ -672,28 +775,75 @@ function toggleAddForm() {
   }
 }
 
-function addExpense() {
-  const date = document.getElementById('newDate').value;
-  const payee = document.getElementById('newPayee').value.trim();
-  const remark = document.getElementById('newRemark').value.trim();
+async function addExpense() {
+  const dateVal  = document.getElementById('newDate').value;
+  const payee    = document.getElementById('newPayee').value.trim();
+  const remark   = document.getElementById('newRemark').value.trim();
   const category = document.getElementById('newCategory').value;
-  const amount = parseFloat(document.getElementById('newAmount').value);
+  const amount   = parseFloat(document.getElementById('newAmount').value);
 
-  if (!date || !remark || isNaN(amount) || amount <= 0) {
+  if (!dateVal || !remark || isNaN(amount) || amount <= 0) {
     alert('Please fill in Date, Remark, and a valid Amount.');
     return;
   }
-  expenses.push({
-    id: Date.now(),
-    approvalId: null,
-    date: new Date(date),
-    accountName: payee,
-    remark, category, amount
-  });
-  // reset
+
+  // Parse date correctly — avoid timezone shift
+  const [yr, mo, dy] = dateVal.split('-').map(Number);
+  const parsedDate = new Date(yr, mo - 1, dy);
+
+  // Reset form fields immediately for smooth UX
   ['newPayee','newRemark','newAmount'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('newDate').value = new Date().toISOString().split('T')[0];
   toggleAddForm();
-  refresh();
+
+  // Save to Supabase
+  try {
+    showToast('⏳ Saving to database...');
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert([{
+        date: dateVal,
+        account_name: payee,
+        remark: remark,
+        category: category,
+        amount: amount
+      }])
+      .select();
+
+    if (error) throw error;
+
+    // Add returned record (with real DB id) to local array
+    const saved = data[0];
+    expenses.unshift({
+      id: saved.id,
+      approvalId: null,
+      date: parsedDate,
+      accountName: saved.account_name || payee,
+      remark: saved.remark || remark,
+      category: saved.category || category,
+      amount: parseFloat(saved.amount) || amount
+    });
+
+    refresh();
+    const dashBtn = document.querySelector('.nav-item');
+    showSection('dashboard', dashBtn);
+    showToast(`✅ Saved: ${remark} — ${fmtAmount(amount)} [${category}]`);
+
+  } catch(err) {
+    console.error('Save error:', err);
+    // Still add locally even if DB fails
+    expenses.unshift({
+      id: Date.now(),
+      approvalId: null,
+      date: parsedDate,
+      accountName: payee,
+      remark, category, amount
+    });
+    refresh();
+    const dashBtn = document.querySelector('.nav-item');
+    showSection('dashboard', dashBtn);
+    showToast('⚠️ Saved locally — database sync failed');
+  }
 }
 
 function renderCatBreakdown() {
@@ -772,73 +922,134 @@ function showSection(id, btn) {
   if (btn) btn.classList.add('active');
 }
 
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+function showToast(msg) {
+  // Remove existing toast if any
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.id = 'toast';
+  toast.innerHTML = `<span class="toast-icon">✅</span><span>${msg}</span>`;
+  document.body.appendChild(toast);
+
+  // Auto-remove after 4 seconds
+  setTimeout(() => {
+    toast.style.animation = 'toastOut .3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 populateCategorySelect();
 
-// Load sample data from the uploaded file structure (pre-seeded)
+// Load data from Supabase on startup
+async function loadFromSupabase() {
+  try {
+    showToast('⏳ Loading data from database...');
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+
+    if (data && data.length > 0) {
+      expenses = data.map(e => ({
+        id: e.id,
+        approvalId: null,
+        date: new Date(e.date),
+        accountName: e.account_name || '',
+        remark: e.remark || '',
+        category: e.category || 'Other',
+        amount: parseFloat(e.amount) || 0
+      }));
+      refresh();
+      showToast(`✅ Loaded ${expenses.length} transactions from database`);
+    } else {
+      // Fallback to SEED if database is empty
+      expenses = SEED.map(e => ({ ...e, date: new Date(e.date) }));
+      refresh();
+      showToast('⚠️ Database empty — loaded local data');
+    }
+  } catch(err) {
+    console.error('Supabase load error:', err);
+    // Fallback to SEED on error
+    expenses = SEED.map(e => ({ ...e, date: new Date(e.date) }));
+    refresh();
+    showToast('⚠️ Could not connect to database — using local data');
+  }
+}
+
+// Load data from Supabase on startup
 const SEED = [
-  { id:1, approvalId:13764513, date:'2026-03-12', accountName:'RICHARD', remark:'SENDING OF OPTICAL PARCEL', category:'Courier & Transport', amount:250 },
-  { id:2, approvalId:13708137, date:'2026-03-04', accountName:'STEVE OGOCH', remark:'OUTSOURCING OF LAB SERVICE', category:'Courier & Transport', amount:250 },
-  { id:3, approvalId:13724422, date:'2026-03-06', accountName:'COSMAS NYABUTO', remark:'SENDING OF MOH DOCS', category:'Courier & Transport', amount:300 },
-  { id:4, approvalId:13742456, date:'2026-03-09', accountName:'ELLY OPATA', remark:'COURIER CHARGES FOR SENDING PRINTER TO NAIROBI', category:'Courier & Transport', amount:1500 },
-  { id:5, approvalId:13743876, date:'2026-03-10', accountName:'Mashud Abiola', remark:'Transport Allowance', category:'Courier & Transport', amount:1000 },
-  { id:6, approvalId:13714670, date:'2026-03-05', accountName:'Veronica Apiyo', remark:'Transport Allowance', category:'Courier & Transport', amount:100 },
-  { id:7, approvalId:13764464, date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF FUEL', category:'Fuel', amount:2000 },
-  { id:8, approvalId:13743772, date:'2026-03-10', accountName:'Rosemary Apanja', remark:'PURCHASE OF FUEL', category:'Fuel', amount:3556 },
-  { id:9, approvalId:13761490, date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF HARD GLOVES', category:'General Office', amount:700 },
-  { id:10, approvalId:13759881, date:'2026-03-12', accountName:'ADOYO ADVOCATE', remark:'LEGAL FEE', category:'General Office', amount:10000 },
-  { id:11, approvalId:13758004, date:'2026-03-11', accountName:'EDWARD ENVIROWASTE', remark:'BIO WASTE INCINERATION', category:'General Office', amount:2800 },
-  { id:12, approvalId:13753862, date:'2026-03-11', accountName:'Rosemary Apanja', remark:'Purchase of iodine', category:'General Office', amount:230 },
-  { id:13, approvalId:13752938, date:'2026-03-11', accountName:'SAMWEL', remark:'PAYMENT FOR SONOGRAPHY SERVICE', category:'General Office', amount:500 },
-  { id:14, approvalId:13702583, date:'2026-03-03', accountName:'Mashud Abiola', remark:'Transaction fee', category:'General Office', amount:70 },
-  { id:15, approvalId:13694370, date:'2026-03-02', accountName:'ADMIN JANEIRO', remark:'AUTOCLAVING SERVICE', category:'General Office', amount:1500 },
-  { id:16, approvalId:13692362, date:'2026-03-02', accountName:'JEDIDAH OHURU', remark:'LAUNDRY SERVICE', category:'General Office', amount:400 },
-  { id:17, approvalId:13723520, date:'2026-03-06', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF FACILITY AIRTIME', category:'General Office', amount:1050 },
-  { id:18, approvalId:13723654, date:'2026-03-06', accountName:'MERESA', remark:'PAYMENT FOR AUTOCLAVING SERVICE', category:'General Office', amount:500 },
-  { id:19, approvalId:13763767, date:'2026-03-12', accountName:'STEVE OGOCH', remark:'OUTSOURCING OF LAB SERVICE', category:'Lab Expense', amount:500 },
-  { id:20, approvalId:13755155, date:'2026-03-11', accountName:'PREMIUM TECHNICAL SOLUTION', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:7800 },
-  { id:21, approvalId:13763792, date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:4200 },
-  { id:22, approvalId:13685637, date:'2026-03-02', accountName:'STEVE OGOCH', remark:'OUTSOURCING OF LAB SERVICES', category:'Lab Expense', amount:1200 },
-  { id:23, approvalId:13704590, date:'2026-03-04', accountName:'PREMIUM TECHNICAL', remark:'PURCHASE OF LAB CONSUMABLE', category:'Lab Expense', amount:4200 },
-  { id:24, approvalId:13752317, date:'2026-03-11', accountName:'Rosemary Apanja', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:970 },
-  { id:25, approvalId:13722887, date:'2026-03-06', accountName:'ELLY OUDA', remark:'OUTSOURCING OF LAB SERVICE', category:'Lab Expense', amount:500 },
-  { id:26, approvalId:13721867, date:'2026-03-06', accountName:'ELLY OUDA', remark:'OUTSOURCING LAB SERVICE', category:'Lab Expense', amount:1000 },
-  { id:27, approvalId:13716948, date:'2026-03-05', accountName:'Rosemary', remark:'PURCHASE OF IP MEALS', category:'IP Meals & Consumables', amount:830 },
-  { id:28, approvalId:13748591, date:'2026-03-10', accountName:'Rosemary Apanja', remark:'Purchase of IP meals and consumables', category:'IP Meals & Consumables', amount:3640 },
-  { id:29, approvalId:13729466, date:'2026-03-07', accountName:'Rosemary Apanja', remark:'Purchase of IP meals', category:'IP Meals & Consumables', amount:250 },
-  { id:30, approvalId:13727902, date:'2026-03-07', accountName:'Rosemary Apanja', remark:'Purchase of IP meals and consumables', category:'IP Meals & Consumables', amount:5000 },
-  { id:31, approvalId:13742629, date:'2026-03-09', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF IP CONSUMABLES', category:'IP Meals & Consumables', amount:2650 },
-  { id:32, approvalId:13756309, date:'2026-03-11', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF IP MEALS', category:'IP Meals & Consumables', amount:1850 },
-  { id:33, approvalId:13743142, date:'2026-03-09', accountName:'Jesca Ambale', remark:'Purchase of cake', category:'Marketing', amount:2000 },
-  { id:34, approvalId:13741943, date:'2026-03-09', accountName:'PHILIP KIOKO', remark:'LUNCH ALLOWANCE TO MARKETING TEAM', category:'Marketing', amount:1000 },
-  { id:35, approvalId:13686193, date:'2026-03-01', accountName:'MARKETING', remark:'BEING MARKETING EXPENSE', category:'Marketing', amount:1500 },
-  { id:36, approvalId:13691583, date:'2026-03-02', accountName:'JOYCE OWADE', remark:'LABOUR FOR REPAIR OF OPTICAL GLASS', category:'Repair & Maintenance', amount:300 },
-  { id:37, approvalId:13723414, date:'2026-03-06', accountName:'Walter Electrician', remark:'REPAIR OF ELECTRIC', category:'Repair & Maintenance', amount:1950 },
-  { id:38, approvalId:13757997, date:'2026-03-11', accountName:'DR ODUOR', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8000 },
-  { id:39, approvalId:13754929, date:'2026-03-11', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8400 },
-  { id:40, approvalId:13754915, date:'2026-03-11', accountName:'DR ONDIGO', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:20000 },
-  { id:41, approvalId:13727679, date:'2026-03-06', accountName:'Dr Odour', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:10000 },
-  { id:42, approvalId:13727303, date:'2026-03-06', accountName:'Dr Liru', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8000 },
-  { id:43, approvalId:13714401, date:'2026-03-05', accountName:'ONDIGO', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:10000 },
-  { id:44, approvalId:13712877, date:'2026-03-05', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:3600 },
-  { id:45, approvalId:13703579, date:'2026-03-03', accountName:'Dr Oduor', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:5000 },
-  { id:46, approvalId:13695798, date:'2026-03-02', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:5000 },
-  { id:47, approvalId:13691177, date:'2026-03-02', accountName:'DR ONGETI', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:300 },
-  { id:48, approvalId:13703568, date:'2026-03-03', accountName:'Dr Liru', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:3200 },
-  { id:49, approvalId:13691951, date:'2026-03-02', accountName:'Dr Ondigo', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:15000 },
-  { id:50, approvalId:null, date:'2026-03-11', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:12000 },
-  { id:51, approvalId:null, date:'2026-03-09', accountName:'GELLY PHARMACY', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:11000 },
-  { id:52, approvalId:null, date:'2026-03-09', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:165 },
-  { id:53, approvalId:null, date:'2026-03-05', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:6225 },
-  { id:54, approvalId:null, date:'2026-03-05', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:850 },
-  { id:55, approvalId:null, date:'2026-03-03', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:10000 },
-  { id:56, approvalId:null, date:'2026-03-03', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8200 },
-  { id:57, approvalId:null, date:'2026-03-02', accountName:'GELLY PHARMACY', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8000 },
-  { id:58, approvalId:null, date:'2026-03-06', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8500 },
+  { id:1,  date:'2026-03-13', accountName:'ROSEMARY APANJA', remark:'Transport Allowance', category:'Courier & Transport', amount:1450 },
+  { id:2,  date:'2026-03-12', accountName:'RICHARD', remark:'SENDING OF OPTICAL PARCEL', category:'Courier & Transport', amount:250 },
+  { id:3,  date:'2026-03-04', accountName:'STEVE OGOCH', remark:'OUTSOURCIG OF LAB SERVICE', category:'Courier & Transport', amount:250 },
+  { id:4,  date:'2026-03-06', accountName:'COSMAS NYABUTO', remark:'SENDING OF MOH DOCS', category:'Courier & Transport', amount:300 },
+  { id:5,  date:'2026-03-09', accountName:'ELLY OPATA', remark:'COURIER CHARGES FOR SENDING PRINTER TO NAIROBI', category:'Courier & Transport', amount:1500 },
+  { id:6,  date:'2026-03-10', accountName:'Mashud Abiola', remark:'Transport Allowance', category:'Courier & Transport', amount:1000 },
+  { id:7,  date:'2026-03-05', accountName:'Veronica Apiyo', remark:'Transport Allowance', category:'Courier & Transport', amount:100 },
+  { id:8,  date:'2026-03-13', accountName:'PHILIP KIOKO', remark:'PURCHASE OF FUEL', category:'Fuel', amount:2000 },
+  { id:9,  date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF FUEL', category:'Fuel', amount:2000 },
+  { id:10, date:'2026-03-10', accountName:'Rosemary Apanja', remark:'PURCHASE OF FUEL', category:'Fuel', amount:3556 },
+  { id:11, date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF HARD GLOVES', category:'General Office', amount:700 },
+  { id:12, date:'2026-03-12', accountName:'ADOYO ADVOCATE', remark:'LEGAL FEE', category:'General Office', amount:10000 },
+  { id:13, date:'2026-03-13', accountName:'ADOYO ADVOCATE', remark:'LEGAL FEE', category:'General Office', amount:5000 },
+  { id:14, date:'2026-03-11', accountName:'EDWARD ENVIROWASTE', remark:'BIO WASTE INCINERATION', category:'General Office', amount:2800 },
+  { id:15, date:'2026-03-11', accountName:'Rosemary Apanja', remark:'Purchase of iodine', category:'General Office', amount:230 },
+  { id:16, date:'2026-03-11', accountName:'SAMWEL', remark:'PAYMENT FOR SONOGRAPHY SERVICE', category:'General Office', amount:500 },
+  { id:17, date:'2026-03-03', accountName:'Mashud Abiola', remark:'Transaction fee', category:'General Office', amount:70 },
+  { id:18, date:'2026-03-02', accountName:'ADMIN JANEIRO', remark:'AUTOCLAVING SERVICE', category:'General Office', amount:1500 },
+  { id:19, date:'2026-03-02', accountName:'JEDIDAH OHURU', remark:'LAUNDRY SERVICE', category:'General Office', amount:400 },
+  { id:20, date:'2026-03-06', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF FACILITY AIRTIME', category:'General Office', amount:1050 },
+  { id:21, date:'2026-03-06', accountName:'MERESA', remark:'PAYMENT FOR AUTOCLAVING SERVICE', category:'General Office', amount:500 },
+  { id:22, date:'2026-03-12', accountName:'STEVE OGOCH', remark:'OUTSOURCING OF LAB SERVICE', category:'Lab Expense', amount:500 },
+  { id:23, date:'2026-03-11', accountName:'PREMIUM TECHNICAL SOLUTION', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:7800 },
+  { id:24, date:'2026-03-12', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:4200 },
+  { id:25, date:'2026-03-02', accountName:'STEVE OGOCH', remark:'OUTSOURCING OF LAB SERVICES', category:'Lab Expense', amount:1200 },
+  { id:26, date:'2026-03-04', accountName:'PREMIUM TECHNICAL', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:4200 },
+  { id:27, date:'2026-03-11', accountName:'Rosemary Apanja', remark:'PURCHASE OF Lab CONSUMABLE', category:'Lab Expense', amount:970 },
+  { id:28, date:'2026-03-06', accountName:'ELLY OUDA', remark:'OUTSOURCING OF LAB SERVICE', category:'Lab Expense', amount:500 },
+  { id:29, date:'2026-03-06', accountName:'ELLY OUDA', remark:'OUTSOURCING LAB SERVICE', category:'Lab Expense', amount:1000 },
+  { id:30, date:'2026-03-05', accountName:'Rosemary', remark:'PURCHASE OF IP MEALS', category:'IP Meals & Consumables', amount:830 },
+  { id:31, date:'2026-03-10', accountName:'Rosemary Apanja', remark:'Purchase of IP meals and consumables', category:'IP Meals & Consumables', amount:3640 },
+  { id:32, date:'2026-03-07', accountName:'Rosemary Apanja', remark:'PURCHASE OF IP MEALS', category:'IP Meals & Consumables', amount:250 },
+  { id:33, date:'2026-03-07', accountName:'Rosemary Apanja', remark:'Purchase of IP meals and consumables', category:'IP Meals & Consumables', amount:5000 },
+  { id:34, date:'2026-03-09', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF IP CONSUMABLES', category:'IP Meals & Consumables', amount:2650 },
+  { id:35, date:'2026-03-11', accountName:'ROSEMARY APANJA', remark:'PURCHASE OF IP MEALS', category:'IP Meals & Consumables', amount:1850 },
+  { id:36, date:'2026-03-09', accountName:'Jesca Ambale', remark:'Purchase of cake', category:'Marketing', amount:2000 },
+  { id:37, date:'2026-03-09', accountName:'PHILIP KIOKO', remark:'LUNCH ALLOWANCE TO MARKETING TEAM', category:'Marketing', amount:1000 },
+  { id:38, date:'2026-03-01', accountName:'MARKETING', remark:'BEING MARKETING EXPENSE', category:'Marketing', amount:1500 },
+  { id:39, date:'2026-03-02', accountName:'JOYCE OWADE', remark:'BEING LABOUR FOR REPAIR OF OPTICAL GLASS', category:'Repair & Maintenance', amount:300 },
+  { id:40, date:'2026-03-13', accountName:'Walter', remark:'Repair of reception chair', category:'Repair & Maintenance', amount:400 },
+  { id:41, date:'2026-03-06', accountName:'Walter Electrician', remark:'REPAIR OF ELECTRIC', category:'Repair & Maintenance', amount:1950 },
+  { id:42, date:'2026-03-11', accountName:'DR ODUOR', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8000 },
+  { id:43, date:'2026-03-11', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8400 },
+  { id:44, date:'2026-03-11', accountName:'DR ONDIGO', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:20000 },
+  { id:45, date:'2026-03-06', accountName:'Dr Odour', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:10000 },
+  { id:46, date:'2026-03-06', accountName:'Dr Liru', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:8000 },
+  { id:47, date:'2026-03-05', accountName:'ONDIGO', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:10000 },
+  { id:48, date:'2026-03-05', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:3600 },
+  { id:49, date:'2026-03-03', accountName:'Dr Oduor', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:5000 },
+  { id:50, date:'2026-03-02', accountName:'DR LIRU', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:5000 },
+  { id:51, date:'2026-03-02', accountName:'DR ONGETI', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:300 },
+  { id:52, date:'2026-03-03', accountName:'Dr Liru', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:3200 },
+  { id:53, date:'2026-03-02', accountName:'Dr Ondigo', remark:'DOCTORS FEE PAYMENT', category:'Doctors Fee', amount:15000 },
+  { id:54, date:'2026-03-13', accountName:'GELLY PHARMACY', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:10000 },
+  { id:55, date:'2026-03-11', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:12000 },
+  { id:56, date:'2026-03-09', accountName:'GELLY PHARMACY', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:11000 },
+  { id:57, date:'2026-03-09', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:165 },
+  { id:58, date:'2026-03-05', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:6225 },
+  { id:59, date:'2026-03-05', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:850 },
+  { id:60, date:'2026-03-03', accountName:'KAVIRONDO', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:10000 },
+  { id:61, date:'2026-03-03', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8200 },
+  { id:62, date:'2026-03-02', accountName:'GELLY PHARMACY', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8000 },
+  { id:63, date:'2026-03-06', accountName:'Gelly Pharmacy', remark:'PURCHASE OF IP DRUGS', category:'Drugs', amount:8500 },
 ];
 
-expenses = SEED.map(e => ({ ...e, date: new Date(e.date) }));
-refresh();
+loadFromSupabase();
 </script>
 </body>
 </html>
