@@ -669,7 +669,7 @@ const _supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { per
 async function loadLiveStats() {
   try {
     // Use direct REST fetch for reliability
-    const res = await fetch(SUPA_URL + '/rest/v1/expenses?select=*', {
+    const res = await fetch(SUPA_URL + '/rest/v1/EXPENSES?select=*', {
       headers: {
         'apikey': SUPA_KEY,
         'Authorization': 'Bearer ' + SUPA_KEY,

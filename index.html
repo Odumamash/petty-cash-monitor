@@ -544,7 +544,7 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
       showToast('⏳ Saving ' + parsed.length + ' transactions to database...');
 
       // Clear existing data in Supabase and insert new
-      await _db.from('expenses').delete().neq('id', 0);
+      await _db.from('EXPENSES').delete().neq('id', 0);
       const rows = parsed.map(e => ({
         date: e.date.toISOString().split('T')[0],
         account_name: e.accountName,
@@ -553,7 +553,7 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
         amount: e.amount
       }));
 
-      const { error } = await _db.from('expenses').insert(rows);
+      const { error } = await _db.from('EXPENSES').insert(rows);
       if (error) throw error;
 
       expenses = parsed;
@@ -744,7 +744,7 @@ async function updateCategory(id, newCat) {
     exp.category = newCat;
     refresh();
     try {
-      await _db.from('expenses').update({ category: newCat }).eq('id', id);
+      await _db.from('EXPENSES').update({ category: newCat }).eq('id', id);
       showToast(`✅ Category updated to ${newCat}`);
     } catch(err) {
       console.error('Update error:', err);
@@ -755,7 +755,7 @@ async function updateCategory(id, newCat) {
 async function deleteExpense(id) {
   try {
     const { error } = await _db
-      .from('expenses')
+      .from('EXPENSES')
       .delete()
       .eq('id', id);
     if (error) throw error;
@@ -800,7 +800,7 @@ async function addExpense() {
   try {
     showToast('⏳ Saving to database...');
     const { data, error } = await _db
-      .from('expenses')
+      .from('EXPENSES')
       .insert([{
         date: dateVal,
         account_name: payee,
@@ -947,7 +947,7 @@ populateCategorySelect();
 // Load data from Supabase on startup
 async function loadFromSupabase() {
   try {
-    const res = await fetch(SUPA_URL + '/rest/v1/expenses?select=*&order=date.desc', {
+    const res = await fetch(SUPA_URL + '/rest/v1/EXPENSES?select=*&order=date.desc', {
       headers: {
         'apikey': SUPA_KEY,
         'Authorization': 'Bearer ' + SUPA_KEY,
