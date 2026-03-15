@@ -363,7 +363,9 @@
 // ── SUPABASE ─────────────────────────────────────────────────────────────────
 const SUPA_URL = 'https://dfwehqqucvcxfwtuiuji.supabase.co';
 const SUPA_KEY = 'sb_publishable_1invSAM94_1JqFHFrmlXwQ_9muoBZwB';
-const supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY);
+const supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: { persistSession: false }
+});
 
 // ── DATA ──────────────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -544,7 +546,7 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
       showToast('⏳ Saving ' + parsed.length + ' transactions to database...');
 
       // Clear existing data in Supabase and insert new
-      await supabase.from('expenses').delete().neq('id', 0);
+      await supabase.from('EXPENSES').delete().neq('id', 0);
       const rows = parsed.map(e => ({
         date: e.date.toISOString().split('T')[0],
         account_name: e.accountName,
@@ -553,7 +555,7 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
         amount: e.amount
       }));
 
-      const { error } = await supabase.from('expenses').insert(rows);
+      const { error } = await supabase.from('EXPENSES').insert(rows);
       if (error) throw error;
 
       expenses = parsed;
@@ -744,7 +746,7 @@ async function updateCategory(id, newCat) {
     exp.category = newCat;
     refresh();
     try {
-      await supabase.from('expenses').update({ category: newCat }).eq('id', id);
+      await supabase.from('EXPENSES').update({ category: newCat }).eq('id', id);
       showToast(`✅ Category updated to ${newCat}`);
     } catch(err) {
       console.error('Update error:', err);
@@ -755,7 +757,7 @@ async function updateCategory(id, newCat) {
 async function deleteExpense(id) {
   try {
     const { error } = await supabase
-      .from('expenses')
+      .from('EXPENSES')
       .delete()
       .eq('id', id);
     if (error) throw error;
@@ -800,7 +802,7 @@ async function addExpense() {
   try {
     showToast('⏳ Saving to database...');
     const { data, error } = await supabase
-      .from('expenses')
+      .from('EXPENSES')
       .insert([{
         date: dateVal,
         account_name: payee,
@@ -947,19 +949,24 @@ populateCategorySelect();
 // Load data from Supabase on startup
 async function loadFromSupabase() {
   try {
-    showToast('⏳ Loading data from database...');
+    // Try Supabase JS client first
     const { data, error } = await supabase
-      .from('expenses')
+      .from('EXPENSES')
       .select('*')
       .order('date', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase JS error:', error.message);
+      // Fallback to direct REST API
+      await loadViaREST();
+      return;
+    }
 
     if (data && data.length > 0) {
       expenses = data.map(e => ({
         id: e.id,
         approvalId: null,
-        date: new Date(e.date),
+        date: new Date(e.date + 'T00:00:00'),
         accountName: e.account_name || '',
         remark: e.remark || '',
         category: e.category || 'Other',
@@ -968,16 +975,50 @@ async function loadFromSupabase() {
       refresh();
       showToast(`✅ Loaded ${expenses.length} transactions from database`);
     } else {
-      // Fallback to SEED if database is empty
-      expenses = SEED.map(e => ({ ...e, date: new Date(e.date) }));
-      refresh();
-      showToast('⚠️ Database empty — loaded local data');
+      await loadViaREST();
     }
   } catch(err) {
-    console.error('Supabase load error:', err);
-    // Fallback to SEED on error
+    console.error('Supabase load error:', err.message);
+    await loadViaREST();
+  }
+}
+
+async function loadViaREST() {
+  try {
+    const res = await fetch(`${SUPA_URL}/rest/v1/EXPENSES?select=*&order=date.desc`, {
+      headers: {
+        'apikey': SUPA_KEY,
+        'Authorization': `Bearer ${SUPA_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    if (data && data.length > 0) {
+      expenses = data.map(e => ({
+        id: e.id,
+        approvalId: null,
+        date: new Date(e.date + 'T00:00:00'),
+        accountName: e.account_name || '',
+        remark: e.remark || '',
+        category: e.category || 'Other',
+        amount: parseFloat(e.amount) || 0
+      }));
+      refresh();
+      showToast(`✅ Loaded ${expenses.length} transactions`);
+    } else {
+      expenses = SEED.map(e => ({ ...e, date: new Date(e.date) }));
+      refresh();
+      showToast('⚠️ Database empty — using local data');
+    }
+  } catch(err) {
+    console.error('REST fallback error:', err.message);
     expenses = SEED.map(e => ({ ...e, date: new Date(e.date) }));
     refresh();
+    showToast('⚠️ Could not connect — using local data');
+  }
     showToast('⚠️ Could not connect to database — using local data');
   }
 }
