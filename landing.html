@@ -446,7 +446,7 @@ footer{
   .cats-grid{gap:8px}
 }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 
@@ -664,22 +664,25 @@ footer{
 // ── SUPABASE LIVE STATS ───────────────────────────────────────────────────────
 const SUPA_URL = 'https://dfwehqqucvcxfwtuiuji.supabase.co';
 const SUPA_KEY = 'sb_publishable_1invSAM94_1JqFHFrmlXwQ_9muoBZwB';
-const _supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } });
+const _supabase = window.supabase.createClient(SUPA_URL, SUPA_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  global: {
+    headers: {
+      'apikey': SUPA_KEY,
+      'Authorization': 'Bearer ' + SUPA_KEY
+    }
+  }
+});
 
 async function loadLiveStats() {
   try {
-    // Use direct REST fetch for reliability
-    const res = await fetch(SUPA_URL + '/rest/v1/EXPENSES?select=*', {
-      headers: {
-        'apikey': SUPA_KEY,
-        'Authorization': 'Bearer ' + SUPA_KEY,
-        'Content-Type': 'application/json'
-      }
-    });
+    const { data, error } = await _supabase
+      .from('EXPENSES')
+      .select('*');
 
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    console.log('Landing stats:', error ? 'ERROR: ' + error.message : 'OK rows: ' + (data ? data.length : 0));
 
+    if (error) throw new Error(error.message);
     if (!data || data.length === 0) return;
 
     const total = data.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
